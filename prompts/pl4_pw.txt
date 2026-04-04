@@ -1,0 +1,153 @@
+You will be asked to write a Hilbert-style proof for a propositional-logic problem 
+that consists of a number of premises and a given conclusion. Your output will be 
+a JSON dictionary with a single key: 
+
+{"proof": "<proof_step 0>; <proof_step 2>; ...; <proof_step N>"}
+
+Your output must be only this JSON dictionary, nothing else. 
+
+As an example, the problem may be to prove the sentence (A ==> A) from an empty set of premises. 
+Then, the problem is written as follows:
+
+Premises:
+Goal: (A ==> A)
+
+Or the problem could be to prove (A ==> B) from premises C and (A ==> C). Then, the problem is 
+written as follows:
+
+Premises:
+Premise1 := C 
+Premise2 := (A ==> C)
+Goal: (A ==> B)
+
+As seen above, premises are always numbered in sequence starting from 1, and named PremiseN 
+where N is the Nth premise.
+
+A formula p is either an atom among A, B, C, D, E, F, G, H, I, J, K,
+or else: a negation, of the form (~ p); or a conditional (p1 ==> p2)
+(meaning p1 implies p2).
+
+Your proof must be written in the formal language of Hilbert calculus. 
+
+In this language, a proof is a sequence 
+
+1. s_1, justification_1
+...
+N. s_N, justification_N
+
+where sentences s_1, ..., s_N; are as follows: every sentence s_i is either a premise, 
+an instance of an axiom, or follows from two previous sentences s_j, s_k through 
+the application of modus ponens, mp, as follows:
+
+modus ponens (mp): from sentences s_j := (p ==> q), and s_k: p, where p and q are 
+any sentences, derive sentence s_i := q.
+
+Sentence s_N should be the Goal. This is a logically valid proof of s_N.
+
+Justifications, justification_1, ..., justification_N, are formal precise justifications 
+of why the sentences are legally there. They are fully specified below. 
+
+Axioms:
+There are only the following three axioms, where where p, q and r are any sentences 
+in the language:
+
+Axiom 1: (p ==> (q ==> p))
+Axiom 2: ((p ==> (q ==> r)) ==> ((p ==> q) ==> (p ==> r)))
+Axiom 3: (((~ p) ==> (~ q)) ==> (((~ p) ==> q) ==> p)) 
+
+For example, s := ((A ==> B) ==> ((~ C) ==> (A ==> B))) is an instance of Axiom 1, 
+with p := (A ==> B) and q := (~ C), because by substituting (A ==> B) for every 
+occurrence of p in (p ==> (q ==> p)) we get ((A ==> B) ==> (q ==> (A ==> B))), and 
+then by substituting (~ C) for q in this expression we get s.
+
+Notice also that every axiom is a logically valid expression, no matter what logical 
+values p, q, and r take. For example, axiom 1 states that if p is true, then (q ==> p) 
+is true, no matter what sentence q is. Axiom 2 states that if p implies that q implies r, 
+then if p implies q, then p implies r, which is always true, no matter what logical values 
+p, q, and r take. Axiom 3 says that if not p implies not q, then, if not p also implies q, 
+then p has to be true. The reason for that is that if not p implies both q and not q, 
+then not p leads to contradiction. 
+
+Some more examples of instances of axioms:
+
+(A ==> ((B ==> A) ==> B)) ==> ((A ==> (B ==> A)) ==> (A ==> B)) is an instance 
+of Axiom 2, with p := A, q := (B ==> A), and r := B.
+
+((~ (A ==> A)) ==> (~ A)) ==> (((~ (A ==> A)) ==> (~ A)) ==> (~ A)) is an instance 
+of Axiom 3, with p := (A ==> A) and q := (~ A)
+
+On the other hand, (A ==> A) is not an instance of Axiom 1, or Axiom 2, or Axiom 3, 
+because there is no way to substitute the variables p, q, and (in the case of Axiom 3) r 
+to make (A ==> A) exactly match any of the axioms.
+
+Syntax note: In the syntax of the language, always enclose composite sentences 
+in parentheses, and separate by a single spaces the symbols ~ with the sentences 
+to which they apply.
+
+Each step k of a Hilbert-style proof consists of the following:
+
+k. s, justification;
+
+Here, k is the line number of the proof and s is the derived sentence. 
+Justification is as follows, depending on whether s is a premise, an instance 
+of an axiom, or is derived by mp.
+
+if s is a premise, the justification is just the name of the premise.
+
+If s is an instance of an axiom, justification is the axiom, Axiom1, Axiom2, Axiom3 
+(i.e., Axiom followed by the axiom number, no spaces) followed with a comma by 
+assignment of the symbol p to a substring of s, followed with a comma by assignment 
+of the symbol q to another substring of s, followed (in the case of Axioms 2 and 6) 
+with a comma by assignment of the symbol r of Axiom2 to a substring of s, so that 
+the Axiom pattern exactly matches the string s.
+
+If s is an instance of mp, justification is the word 'mp' followed by comma, followed 
+by j, k, where j and k are the two previous steps to which an application of mp produces p. 
+Specifically, sentence of step j must be of the form (p ==> q) and sentence of step k 
+must be of the form p, from which sentence of step i, namely q, follows.
+
+Here is an example of a valid proof of (A ==> A):
+
+0. (A ==> ((A ==> A) ==> A)), Axiom1, p := A, q := (A ==> A);
+1. ((A ==> ((A ==> A) ==> A)) ==> ((A ==> (A ==> A)) ==> (A ==> A))), Axiom2, p := A, q := (A ==> A), r := a;
+2. ((A ==> (A ==> A)) ==> (A ==> A)), mp, 1, 0;
+3. (A ==> (A ==> A)), Axiom1, p := A, q := A;
+4. (A ==> A), mp, 2, 3;
+
+If asked to prove (A ==> A) from no premises, you should produce the above proof 
+or another valid proof of (A ==> A), and write it in json style as follows:
+
+{
+ "proof": "0. (A ==> ((A ==> A) ==> A)), Axiom1, p := A, q := (A ==> A); 
+           1. ((A ==> ((A ==> A) ==> A)) ==> ((A ==> (A ==> A)) ==> (A ==> A))), Axiom2, p := A, q := (A ==> A), r := a; 
+           2. ((A ==> (A ==> A)) ==> (A ==> A)), mp, 1, 0; 3. (A ==> (A ==> A)), Axiom1, p := A, q := A; 4. (A ==> A), mp, 2, 3;"
+}
+
+Here is another example:
+
+Premises: 
+Premise1 := (A ==> B)
+Premise2 := (B ==> C)
+Goal: (A ==> C)
+
+Proof:
+0. (A ==> B), Premise1;
+1. (B ==> C), Premise2;
+2. ((B ==> C) ==> (A ==> (B ==> C))), Axiom1, p := (B ==> C), q := A;
+3. (A ==> (B ==> C)), mp, 2, 1;
+4. ((A ==> (B ==> C)) ==> ((A ==> B) ==> (A ==> C))), Axiom2, p := A, q := B, r := C;
+5. ((A ==> B) ==> (A ==> C)), mp, 4, 3;
+6. (A ==> C), mp, 5, 0;
+
+To write this proof, you should return:
+
+{
+ "proof": "0. (A ==> B), Premise1; 
+           1. (B ==> C), Premise2; 
+           2. ((B ==> C) ==> (A ==> (B ==> C))), Axiom1, p := (B ==> C), q := A; 
+           3. (A ==> (B ==> C)), mp, 2, 1; 
+           4. ((A ==> (B ==> C)) ==> ((A ==> B) ==> (A ==> C))), Axiom2, p := A, q := B, r := C; 
+           5. ((A ==> B) ==> (A ==> C)), mp, 4, 3; 6. (A ==> C), mp, 5, 0;"
+}
+
+Now here's the proof you need to write: 

@@ -1,0 +1,410 @@
+You will be given as input an equational proof sketch, namely, an equational proof with a gap in it. Your objective 
+is to determine whether the gap can be filled with one or more proof steps in a way that results in a detailed 
+equational proof; and if so, to provide a sequence of proof steps that "fills the gap". In addition, you must 
+output an explanation of your reasoning strategy and an estimate of your confidence in the correctness of your answer. 
+
+Here's an example of an input proof sketch: 
+
+s = g(h(c,a,c),h(a,c,a))                                
+  = g(h(a,a,f4(f1(c))),h(a,c,a))          by E1         
+  = ??                                    ?? 
+  = g(g1(g4(f1(f5(f3(a))),d),e),g2(a,c))  by E5, E6     
+
+Your core output in this case will be either an indication that the gap cannot be filled (this will be signified 
+by an empty sequence of proof steps) or else a nonempty sequence of detailed steps for the gap, such as:
+
+   = g(h(a,a,f4(f1(c))),g2(a,c))          by E2         
+   = g(g1(f2(f4(a)),f4(e)),g2(a,c))       by E3         
+   = g(g1(g(f3(a),f2(e)),f4(e)),g2(a,c))  by E4         
+
+With this sequence of steps filling the gap, the original proof sketch is transformed into the following completely 
+detailed proof: 
+
+s = g(h(c,a,c),h(a,c,a))                                
+  = g(h(a,a,f4(f1(c))),h(a,c,a))          by E1         
+  = g(h(a,a,f4(f1(c))),g2(a,c))           by E2         
+  = g(g1(f2(f4(a)),f4(e)),g2(a,c))        by E3         
+  = g(g1(g(f3(a),f2(e)),f4(e)),g2(a,c))   by E4         
+  = g(g1(g4(f1(f5(f3(a))),d),e),g2(a,c))  by E5, E6     
+
+The goal of the input proof sketch is to rewrite a starting term to an ending term with a chain of equational-inference steps, 
+each of which must be justified by appeal to certain equations that are taken for granted (as axioms). In particular, a fully 
+detailed proof (without any gaps) consists of the following:
+
+(1) a set EQN comprising m > 0 equational axioms E_1,...,E_m, m > 0; and 
+
+(2) a sequence of n > 0 steps S_0, S_1, ..., S_n, where each step S_i consists of a term t_i, which we write as term(S_i), and a set
+of equations drawn from EQN, which we write as EQN(S_i). We have EQN(S_0) = {}. The term of the first step S_0 is the starting term, 
+the term of the last step S_n is the ending term, and the first step (S_0) does not have any equations (EQN(S_0) = {}). 
+For every step S_i with i > 0, the equations EQN(S_i) are supposed to license the passage from term(S_{i-1}) to term(S_i). 
+That is, the equations cited by step S_i, i > 0, *prove* that the term of that step can be derived from the term of the preceding step 
+by simple equational reasoning. (Exactly what is meant by "simple equational reasoning" will be clarified shortly.)
+Thus, the entire proof can be schematically understood as follows:
+
+    term(S_0)
+  = term(S_1)  by EQN(S_1)
+  = term(S_2)  by EQN(S_2)
+  ... 
+  = term(S_n)  by EQN(S_n)
+
+Note that EQN(S_i) should have at most 2 equations. You can't list 3 or more justifying equations for a step. 
+
+Here is a concrete example of a full proof, with g(a,f(b)) as the starting term, g(f(f(f(b))),a) as the ending term, and 
+EQN containing the two equations E1: f(X) = f(f(X)) and E2: g(X,Y) = g(Y,X). Variable names start with upper-case letters, 
+whereas the names of function symbols and constants start with lower-case letters. Every equation is understood to be 
+universally quantified over all the variables that occur in it. Thus, for example, E2 should be understood as 
+(forall X, Y . g(X,Y) = g(Y,X)). The proof has 4 steps: 
+
+s = g(a,f(b))                 # Step S_0
+  = g(f(b),a)         by E2   # Step S_1
+  = g(f(f(b)),a)      by E1   # Step S_2
+  = g(f(f(f(b))),a)   by E1   # Step S_3 
+
+This proof is correct, because the term of each step S_i for i > 0 can be derived from the previous term on the basis
+of the cited equations (again, the exact definition of derivability is given below). In particular: 
+
+Step S_1: By E2, we have g(X,Y) = g(Y,X) for all X, Y. Hence, the previous term, term(S_0) = g(a,f(b)), can be rewritten as 
+term(S_1) = g(f(b),a) by switching the order of the two arguments. 
+
+Step S_2: By E1, we have f(X) = f(f(X)) for all X, and hence f(b) = f(f(b)). Thus, term(S_1) = g(f(b),a) can be rewritten 
+into g(f(f(b)),a), which is precisely term(S_2). 
+
+Step S_3: Again by E1, we have f(X) = f(f(X)) for all X, and thus f(f(b)) = f(f(f(b))). Accordingly, term(S_2) = g(f(f(b)),a) 
+can be rewritten into g(f(f(f(b))),a), which is term(S_3). This step concludes the proof successfully. 
+
+In the gap-filling case, if you are given as input the proof sketch 
+
+s = g(a,f(b))                
+  = ??                ?? 
+  = g(f(f(f(b))),a)   by E1  
+
+you should be able to fill in the gap (designated by the question marks) with the two-step sequence: 
+
+  = g(f(b),a)         by E2  
+  = g(f(f(b)),a)      by E1  
+
+thereby recovering the complete (concrete) original proof. 
+
+In particular, your output will be a JSON dictionary with only 3 keys, "explanation", "missingSteps", and "confidence".
+
+{"explanation": <An explanation, in English, of your reasoning strategy for solving this problem.>,
+
+ "missingSteps": <A list of missing steps [step_1, ..., step_n], each of which is a JSON dictionary with 2 keys: 
+                  {"term": <the term of this step>, 
+                   "supportingEquations": <A list [...] of equation names that justify this step.>}>,
+
+ "confidence": <An integer from 1 to 5, with 5 representing perfect confidence, 1 representing no confidence, 
+                2 representing little confidence, 3 representing some (medium) confidence, and 4 representing
+                strong but not quite perfect confidence.>}
+
+You can indicate that that there is no valid way to fill in the missing gap by specifying the empty list [] 
+as the value of "missingSteps". 
+
+Note that your supportingEquations list for every step should not include any redundant elements. It should
+include an equation if and only if that equation is actually needed for that particular step. 
+
+We use the following alphabet of function symbols: 
+
+Constant symbols            (arity 0): a, b, c, d, e         
+Unary function symbols      (arity 1): f, f1, f2, f3, f4, f5
+Binary function symbols     (arity 2): g, g1, g2, g3, g4, g5
+Ternary function symbols    (arity 3): h, h1, h2, h3, h4, h5
+Quaternary function symbols (arity 4): r, r1, r2, r3, r4, r5 
+
+Constant symbols are not necessarily distinct. A certain set of equations might imply, for example,
+the identity (a = b). 
+
+Variable names start with upper-case letters: X, Y, V123, etc. 
+
+Terms are essentially tree structures. Constant symbols and variables can be viewed as leaves, whereas 
+a complex term like g(s,t) is a tree of height greater than 1, with the function symbol g at the root 
+and the immediate subterms s and t as its subtrees. The notion of a subterm then corresponds to the notion 
+of a subtree. For instance, the term t = h(a,f(b),g(c,d)) has the proper subterms a, f(b), b, g(c,d), c, and d. 
+Every term is a subterm of itself, though not a proper subterm. Using Dewey-style positional notation to 
+navigate trees, we may say that the root of the term t above, namely the symbol h, occurs at position []. 
+At position [1] we find the constant symbol a. At position [2] we find the subterm f(b), and thus at 
+position [2, 1] we find the constant symbol b. At position [3] we have g(c,d) and thus at positions [3,1] 
+and [3,2] we have the constants c and d respectively. We can also associate these positions with the entire 
+subterms rooted there, writing subterm(t,p) to denote the subterm of t found at position p:
+
+subterm(t,[]) = h(a,f(b),g(c,d))
+subterm(t,[1]) = a
+subterm(t,[2]) = f(b)
+subterm(t,[2,1]) = b 
+subterm(t,[3]) = g(c,d)
+subterm(t,[3,1]) = c
+subterm(t,[3,2]) = d 
+
+Note that subterm is a partial function, meaning that subterm(t,p) is undefined if p is not a 
+valid position in the tree representation of t. 
+
+Two positions are disjoint iff neither is a prefix of the other. 
+
+A substitution theta is a finite function from variables to terms, e.g., theta = {V12 = a, V354 = f(b)}. 
+To *apply* such a substitution theta to a term t is simply to replace every variable v in t that occurs 
+in the domain of theta with the corresponding term, theta(v). For instance, applying the above substitution 
+to the term s = h(a,V12, g(V12,V354)) produces the term theta(s) = h(a,a,g(a,f(b))). We say that 
+a term t *matches* a term s (or is "an instance" of s) iff there is a substitution theta such that 
+theta(s) = t. For example, g(X,f(b)) matches g(X,Y) under the substitution {Y = f(b)}. 
+
+If e is an equation (s1 = s2), we write LHS(e) and RHS(e) for s1 and s2, respectively. And we say that a term s 
+*reduces* or *rewrites* to a term t via e, written as s -->_e t, iff there is a position p such that subterm(s,p) 
+matches LHS(e) under some substitution theta and t is identical to s except that subterm(t,p) = theta(RHS(e)). 
+We refer to subterm(s,p) as a *redex* of s under e, or as an "e-redex", and we refer to subterm(t,p) as the 
+corresponding *contractum*. Thus, t is obtained from s by replacing the e-redex at position p by the corresponding 
+contractum. 
+
+If E = {e_1,...,e_k} is a set of k > 0 equations, we write s ==>_E t iff s contains k distinct redexes,
+one for each e_i in E, in k *disjoint* positions; and t is obtained from s by replacing each of these 
+k redexes by the corresponding contractum. Thus, if s ==>_E t then we have 
+s -->_{e_1} s_1 -->_{e_2} s_2 ... -->_{e_k} s_k = t for k-1 intermediate terms s_i. However, because
+the k redexes occur in disjoint positions of s, we can imagine all of these reductions occurring concurrently
+in one fell swoop. Note that, by definition, if s ==>_E t then E is minimal in the sense that it has no 
+redundant equations; all k equations in E are used to reduce k redexes in s. We write <==>_E for the symmetric
+closure of ==>_E, so that s <==>_E t iff either s ==>_E t or t ==>_E s. 
+
+We can now specify exactly what it means to say that a term t can be derived from a term s 
+by "simple equational reasoning". It means that there is a subset E of EQN, having exactly k > 0 equations, 
+such that s <==>_E t. Thus, the "supportingEquations" you list for a given step of the proof must comprise a set
+E such that s <==>_E t, where t is the step's term and s is the previous step's term. 
+
+For instance, consider again the proof example above:
+
+s = g(a,f(b))                 # Step S_0
+  = g(f(b),a)         by E2   # Step S_1
+  = g(f(f(b)),a)      by E1   # Step S_2
+  = g(f(f(f(b))),a)   by E1   # Step S_3 
+
+where E1 is f(X) = f(f(X) and E2 is g(X,Y) = g(Y,X). Looking at step S_1, we see that the entire preceding term, term(S_0), 
+namely g(a,f(b)), is a redex, matching the LHS of E2 under the substitution {X = a, Y = f(b)}. Applying this substitution 
+at the matching position, [], means replacing that subterm with the corresponding instance of the right-hand side of E2, 
+g(Y,X), i.e., with the contractum g(f(b),a), thus g(a,f(b)) ==>_{E2} g(f(b),a). 
+
+Likewise, looking at step S_2, in going from term(S_1) = g(f(b),a) to term(S_2) = g(f(f(b)),a) by virtue of E1, we see that
+the subterm f(b) of term(S_1), at position [1], matches the LHS of E1 under theta = {X = b}. Replacing that redex 
+with the corresponding instance of the RHS of E1, namely the contractum f(f(b)), produces term(S_2) = g(f(f(b)),a),
+and thus term(S_1) ==>_{E1} term(S_2). Repeating this process one more time finally takes us from S_2 to S_3, which concludes the proof. 
+
+It follows that if you are going from a term s to a term t and citing two supporting equations, either s must have two subterms 
+in disjoint positions, matching the left-hand sides of these two equations, and t must be obtained by reducing these two redexes,
+or conversely, t must have two such redexes and s must be obtained by reducing those two redexes. Remember that you cannot cite
+more than 2 equations per step. And it follows that you should set the value of 'missingSteps' to be the empty list iff the gap
+cannot be closed, i.e., iff there is no sequence of steps connecting the term right before the beginning of the gap to the term
+right after the gap where each step adheres to the requirements listed above. 
+
+Here are a few examples of proof sketches and correct outputs for them (we omit the "explanation" and "confidence" values, 
+since those are entirely up to you): 
+
+# BEGIN_EXAMPLES
+
+** Example 1: 
+-- Input: 
+
+- Equations:
+
+E1: h(c,V1170,c) = h(V1170,a,f4(f1(c)))
+E2: h(V1173,V1174,V1173) = g2(V1173,V1174)
+E3: h(a,V1181,f4(f1(c))) = g1(f2(f4(V1181)),f4(e))
+E4: f2(f4(V1184)) = g(f3(V1184),f2(e))
+E5: g(V1187,f2(e)) = g4(f1(f5(V1187)),d)
+E6: f4(V1188) = V1188
+
+- Proof: 
+
+s = g(h(c,a,c),h(a,c,a))                                 
+    g(h(a,a,f4(f1(c))),h(a,c,a))          by E1          
+    g(h(a,a,f4(f1(c))),g2(a,c))           by E2          
+    ??                                    ??
+    g(g1(g(f3(a),f2(e)),f4(e)),g2(a,c))   by E4          
+    g(g1(g4(f1(f5(f3(a))),d),e),g2(a,c))  by E5, E6      
+
+-- Output: 
+
+{"explanation": ...,
+ "missingSteps": [{"term": "g(g1(f2(f4(a)),f4(e)),g2(a,c))", "supportingEquations": ["E3"]}],
+ "confidence": ...}
+
+** Example 2:
+
+-- Input: 
+
+- Equations:
+
+E1:  h(V1130,V1131,V1132) = h4(V1130,f(V1132),f2(V1131))
+E2:  h(c,c,V1149) = g3(V1149,c)
+E3:  g(V1152,V1153) = f2(V1152)
+E4:  h4(e,f(V1154),f2(a)) = g3(f2(f1(V1154)),e)
+E5:  r(d,c,V1162,V1163) = g(g3(V1163,V1162),f(f4(e)))
+
+- Proof:
+
+s = r(r(d,c,d,b),h(c,c,c),g(d,c),h(e,a,c))                               
+    r(r(d,c,d,b),h(c,c,c),g(d,c),h4(e,f(c),f2(a)))        by E1          
+    r(r(d,c,d,b),g3(c,c),g(d,c),h4(e,f(c),f2(a)))         by E2          
+    ??                                                    ??
+    r2(g(g3(b,d),f(f4(e))),g3(c,c),f2(d),g3(f2(f1(c)),e)) by E5        
+
+-- Output: 
+
+{"explanation": ...,
+ "missingSteps": [],
+ "confidence": ...}
+
+** Example 3:
+
+-- Input:
+
+- Equations:
+
+E1:  f(V1089) = f4(V1089)
+E2:  g(V1092,V1093) = g3(f(f(V1093)),V1092)
+E3:  r(V1094,V1094,e,V1094) = g2(f2(f3(V1094)),d)
+E4:  f2(V1103) = f1(V1103)
+E5:  g3(V1107,d) = f2(g(f2(V1107),d))
+
+- Proof:
+
+s = h(f(r(b,b,e,b)),h(e,c,e),g(d,e))                                    
+  = ??                                                    ??
+  = h(f4(g2(f1(f3(b)),d)),h(e,c,e),f2(g(f2(f(f(e))),d)))  by E5         
+
+-- Output: 
+
+{"explanation": ...,
+ "missingSteps": [{"term": "h(f4(r(b,b,e,b)),h(e,c,e),g(d,e))", "supportingEquations": ["E1"]},
+                  {"term": "h(f4(g2(f2(f3(b)),d)),h(e,c,e),g3(f(f(e)),d))", "supportingEquations": ["E2", "E3"]},
+                  {"term": "h(f4(g2(f1(f3(b)),d)),h(e,c,e),g3(f(f(e)),d))", "supportingEquations": ["E4"]}],
+ "confidence": ...}
+
+** Example 4:
+
+-- Input:
+
+- Equations:
+
+E1:  h(V1215,V1215,V1216) = g3(V1216,f1(V1215))
+E2:  h(V1217,V1218,V1219) = h1(f4(V1217),V1218,V1219)
+E3:  f1(V1242) = f2(V1242)
+E4:  h1(V1246,e,b) = g4(V1246,a)
+E5:  f4(V1249) = V1249
+E6:  g(a,V1252) = g2(V1252,f1(b))
+E7:  h(a,V1253,V1254) = g1(g2(V1253,V1254),b)
+
+- Proof:
+
+s = r(h(a,c,e),f(h(e,e,b)),h(a,e,b),g(a,a))                             
+    ??                                                   ?? 
+    r(g1(g2(c,e),b),f(g3(b,f2(e))),g4(a,a),g2(a,f1(b)))  by E6, E7      
+
+-- Output: 
+
+{"explanation": ...,
+ "missingSteps": [{"term": "r(h(a,c,e),f(g3(b,f1(e))),h1(f4(a),e,b),g(a,a))", "supportingEquations": ["E1", "E2"]},
+                  {"term": "r(h(a,c,e),f(g3(b,f2(e))),h1(f4(a),e,b),g(a,a))", "supportingEquations": ["E3"]},
+                  {"term": "r(h(a,c,e),f(g3(b,f2(e))),g4(f4(d),a),g(a,a))", "supportingEquations": ["E4"]},
+                  {"term": "r(h(a,c,e),f(g3(b,f2(e))),g4(a,a),g(a,a))", "supportingEquations": ["E5"]}],
+ "confidence": ...}
+
+** Example 5:
+
+-- Input:
+
+- Equations:
+
+E1:  r(V1193,a,d,b) = h3(V1193,e,d)
+E2:  h3(c,V1196,V1197) = g4(V1197,g3(V1196,a))
+E3:  g3(V1204,a) = f3(g3(V1204,f3(d)))
+E4:  g4(V1207,V1208) = g3(V1208,f4(V1207))
+
+- Proof:
+
+s = f(r(c,a,d,b))                   
+    f(h3(c,e,d))                  by E1
+    ??                            ??
+    f(g4(d,f3(g3(e,f3(d)))))      by E3
+    f(g3(f3(g3(e,f3(d))),f4(d)))  by E4
+
+-- Output: 
+
+{"explanation": ...,
+ "missingSteps": [],
+ "confidence": ...}
+
+** Example 6:
+
+-- Input:
+
+- Equations:
+
+E1:  h(a,V1110,V1111) = g3(f(V1111),f1(V1110))
+E2:  h(b,c,V1118) = g(f4(f3(V1118)),a)
+E3:  g3(f(c),f1(V1119)) = g(f2(V1119),g1(a,c))
+E4:  f2(V1124) = f1(f1(V1124))
+E5:  f4(f3(V1125)) = f2(g(V1125,f4(c)))
+
+- Proof:
+
+s = r(h(e,e,c),g(c,b),h(b,c,b),h(a,a,c))                        
+    ??                                                        ??
+    r(h4(e,e,c),g(c,b),g(f2(g(b,f4(e))),a),g(f2(a),g1(a,c)))  by E4, E5    
+
+-- Output: 
+
+{"explanation": ...,
+ "missingSteps": [],
+ "confidence": ...}
+
+** Example 7:
+
+-- Input:
+
+- Equations:
+
+E1:  g(V163472,V163472) = f2(V163472)
+E2:  f1(V163478) = g2(V163478,f1(b))
+E3:  h(V163475,a,c) = g4(V163475,f1(c))
+
+- Proof:
+
+s = r(h(c,a,c),g(c,c),h(a,d,b),h(d,a,c))                     # step 0
+    r(h(c,a,c),f2(c),h(a,d,b),h(d,a,c))           by E1      # step 1
+    ??                                            ??
+    r(h(c,a,c),f2(c),h(a,d,b),g4(d,g2(c,f1(b))))  by E2      # step 3
+
+-- Output: 
+
+{"explanation": ...,
+ "missingSteps": [{"term": "r(h(c,a,c),f2(c),h(a,d,b),g4(d,f1(c)))", "supportingEquations": ["E1"]}],
+ "confidence": ...}
+
+#END_EXAMPLES
+
+To sum up, your output must be a JSON dictionary with three keys: 
+
+1. "explanation", whose value is a text that explains how you went about solving this problem. 
+
+2. "missingSteps", whose value should be the empty list if the gap of the input proof sketch cannot be 
+given a valid completion; or a nonempty list of steps, each represented as a dictionary with two keys, 
+"term" and "supportingEquations". 
+
+3. "confidence", whose value should be an integer from 1 to 5 representing your confidence in your 
+"missingSteps" answer, with 5 and 0 denoting perfect confidence and no confidence, respectively. 
+
+Recall that an empty list for the "missingSteps" key means something very specific and falsifiable:
+that the gap can't be filled. This is a strong statement to make, so only output this with high confidence 
+if you are certain that the gap indeed cannot be filled in any valid way. 
+
+If you think that the problem is too hard to solve and you are not confident in your ability to produce
+a valid answer for missingSteps in a reasonable amount of time, then give a low value to the "confidence" 
+key and the empty list to the "missingSteps" key. But don't resort to this too often - make a strong 
+and earnest effort to solve the problem and figure out the missing steps! 
+
+Finally, also recall that:
+
+** Your supportingEquations list for a given step should only include justifying equations that are actually 
+needed for that particular step; it should not include any superfluous equations. 
+
+** You cannot list more than 2 supporting equations per step. Doing so will be considered cheating and you'll
+receive zero credit for the problem. 
+
+Now here is your input proof: 

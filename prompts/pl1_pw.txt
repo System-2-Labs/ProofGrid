@@ -1,0 +1,604 @@
+You will be asked to write a Fitch-style natural-deduction proof for a propositional-logic problem 
+that consists of a number of premises and a given conclusion. Your output will be a JSON dictionary 
+with two keys: {"description": <English description of the proof>, "proof": <formal proof>}, where 
+<formal proof> will be your proof and <English description> will be a high-level description of the 
+strategy behind the proof. Your output must be only the above JSON dictionary, nothing else. 
+
+As an example, the problem may be to prove the sentence  ((A & B) ==> (B & A)) from an empty set 
+of premises. A formula p is either an atom like A, B, C, D, E, ... or else: a negation, of the 
+form (~ p); a conjunction, of the form (p1 & p2); a disjunction, of the form (p1 | p2); a conditional 
+(p1 ==> p2); or a biconditional (p1 <==> p2). Precedence and associativity are as follows: Negation 
+binds the tightest, followed by conjunction, disjunction, conditionals and biconditionals, in that order. 
+All binary logical constructors associate to the right, so (A & B & C) is (A & (B & C)). 
+Thus, (~A & B ==> C | D) should be understood as (((~ A) & B) ==> (C | D)), and these two formulas 
+should be considered identical, given the precedence and associativity conventions just specified. 
+The "complement" of a formula p, denoted by p', is defined as follows: if p is not a negation, then 
+its complement p' is defined as (~ p); but if p is a negation of the form (~ q), then its complement 
+p' is defined as q. Thus, for example, A' = (~ A), while (~ B)' = B. 
+
+Your proof must be written in a formal language called NDL. In this language, proofs have formal 
+syntax and semantics. In particular, a proof is either an application of single inference rule to 
+a number of sentences; or a composite proof, built by stringing together a number of other proofs; 
+or a hypothetical (conditional) proof. Applications of inference rules are primitive proofs with 
+no internal structure, while composite and hypothetical proofs are compound, having recursive structure. 
+
+More specifically: 
+
+1. A primitive proof is a single-line application of an inference rule R to a number of sentences 
+p_1,...,p_n, each of which is either an asserted premise, or a currently active assumption, or else 
+was derived by a previous subproof. Such a single-step proof is of the form "R on p_1,...,p_n", 
+where R is the name of the inference rule and p_1, ..., p_n are its arguments; or, more frequently, 
+"p BY R on p_1,...,p_n", where p is the conclusion obtained by the application of R to p_1,...,p_n. 
+For instance, an application of mp (modus ponens) might be written as:
+
+C BY mp on (A ==> C), A 
+
+meaning that the conclusion C is obtained BY applying the rule mp (modus ponens) to two arguments: 
+the conditional (A ==> C) and the atom A. 
+
+In addition, a rule application (like other subproofs in NDL) can optionally be given an arbitrary 
+name (identifier) I, so its full syntax takes one of 4 forms: either 
+
+* R on p_1,...,p_n (unnamed version, no BY); or 
+
+* I := R on p_1,...,p_n (named version, no BY); or 
+
+* p BY R on p_1,...,p_n (unnamed version, with BY); or finally 
+
+* I := p BY R on p_1,...,p_n (named  version, with BY).
+
+With naming, subsequent steps in the proof can use the name I to refer to the formula that is produced 
+by this rule application (but only inside the same block where it was introduced; see the information 
+below concerning scope and proof blocks). 
+
+An underscore _ can be used as an identifier, serving as a wildcard "don't-care" name in a step 
+of this form  _ := .... 
+
+Note that a single inference step cannot contain multiple uses of BY, e.g., you can't write something 
+like this:
+
+p1 BY rule1 on arg1 BY rule2 on arg2
+
+This would be a syntax error. To achieve the same effect without an error, you would need to break up 
+the reasoning into two consecutive steps, properly separated by a semicolon: 
+
+arg1 BY rule2 on arg2; 
+p1 BY rule1 on arg1 
+
+2. Multiple proofs D_1, ..., D_n, D_{n+1} can be combined into a single *proof block* by enclosing them 
+within curly braces and separating them with semicolons:
+
+{
+  D_1;
+  ...
+  D_n;
+  D_{n+1} 
+} 
+
+Note the indentation (by two blanks). Also note that there is no semicolon after the last element (D_{n+1}), 
+though placing on there is harmless.
+
+Composition is how lemma formation works in NDL: The conclusion of each D_i becomes logically available to 
+every subsequent D_j (j > i) *in this block*, though it is NOT logically available to subsequent deductions 
+that lie outside of this block. But inside this block, the conclusion of D_i is available to every D_j 
+with j > i, and thus every such D_j can use the conclusion of D_i as if it were a premise. 
+
+Consider, for instance, the two-step composition
+
+{ 
+  (~ B) by mp (A ==> (~ B)), A;
+  (C & (~ B)) BY both on C, (~ B) # Point 1: Here, (~ B) can be used freely. 
+}
+... # Point 2: (~ B) is no longer active, as we are outside of the proof block in which (~ B) was derived. 
+
+Here, (~ B) is derived by the fist step, the application of mp, and hence it can be freely used as an argument 
+to the subsequent application of both, at point 1. At point 2 we have moved outside of the block in which (~ B) 
+was derived, and hence (~ B) is no longer available. 
+
+Note the following important point: The conclusion produced by the entire composition {D_1; ...; D_n; D_{n+1}} 
+is the conclusion of the very last element of the composition, i.e., the conclusion of the proof D_{n+1}. 
+In the above example, the conclusion produced by the two-element composition 
+{ 
+  (~ B) by mp (A ==> (~ B)), A;
+  (C & (~ B)) BY both on C, (~ B)
+}
+
+is the conclusion produced by the second proof element, namely (C & (~ B)). 
+
+3. Below is the list of inference rules that can be used with primitive rule applications in NDL. 
+Each can only be applied to a specific number of sentences, and oftentimes those sentences 
+need to have a specific syntactic form, otherwise the application results in an error. 
+
+  Rule 1: Name: claim (reiteration)  
+          Description: Applied to a sentence p that holds, it returns p again as the conclusion. 
+
+  Rule 2: Name: left-and (conjunction elimination)
+          Description: Applied to a conjunction (p & q) that holds, it detaches the left 
+          component p. 
+
+  Rule 3: Name: right-and (conjunction elimination) 
+          Description: Applied to a conjunction (p & q) that holds, it detaches the right 
+          component q.
+
+  Rule 4: Name: both (conjunction introduction)
+          Description: Applied to two sentences p and q that hold, it produces the 
+          conjunction (p & q). 
+
+  Rule 5: Name: mp (modus ponens, conditional elimination) 
+          Description: Applied to two sentences (p ==> q) and p that hold, it produces 
+         the conclusion q. 
+
+  Rule 6: Name: left-either (disjunction introduction)
+          Description: Applied to two sentences p and q, the left of which (p) holds, 
+          it produces the disjunction (p | q). 
+
+  Rule 7: Name: right-either (disjunction introduction)
+          Description: Applied to two sentences p and q, the right of which (q) holds, 
+          it produces the disjunction (p | q). 
+
+  Rule 8: Name: cases (disjunction elimination)
+          Description: Applied to three sentences of the form (p | q), (p ==> r) and (q ==> r) 
+          that hold, it produces the conclusion r. 
+
+  Rule 9: Name: absurd (false introduction):
+          Description: Applied to two complementary sentences of the form p and (~ p) (or (~ p) and p), 
+          both of which hold, it produces the conclusion false. 
+
+  Rule 10: Name: dn (negation elimination, aka "double negation"):
+           Description: Applied to a sentence of the form (~ ~ p) that holds, it produces 
+           the conclusion p. 
+
+  Rule 11: Name: left-iff (biconditional elimination)
+           Description: Applied to a sentence of the form (p <==> q) that holds, it produces 
+           the conclusion (p ==> q). 
+
+  Rule 12: Name: right-iff (biconditional elimination)
+           Description: Applied to a sentence of the form (p <==> q) that holds, it produces 
+           the conclusion (q ==> p). 
+
+  Rule 13: Name: equiv (biconditional introduction) 
+           Description: Applied to two sentences of the form (p ==> q) and (q ==> p) that hold, 
+           it produces the conclusion (p <==> q). 
+
+  Rule 14: Name: ex-middle (excluded middle)
+           Description: Applied to any sentence p, regardless of whether p holds, it produces 
+           the conclusion (p | ~p). 
+
+  Rule 15: Name: dm (De Morgan)
+           Description: dm can be applied to any sentence of the form (~ (p & q)) that hods, 
+           producing the conclusion (~p | ~q). It can also be applied to a sentence of the form 
+           (~ (p | q)) that holds, producing the conclusion (~p & ~q).
+
+  Rule 16: Name: dsyl (disjunctive syllogism):
+           Description: If a disjunction (p | q) holds and the complement of one of the disjuncts 
+           also holds, then applying this rule to (p | q) and the complement in question will 
+           produce the other disjunct. For instance, if (A | B) and (~ B) hold, then the application 
+           "A BY dsyl ON (A | B), (~ B)" will produce the conclusion A. Likewise, if (A | B) and (~ A) 
+           both hold, the applying dsyl to (A | B), (~ A) will produce B (assuming that both (A | B) 
+           and (~ A) hold currently). 
+
+  Rule 17: Name: neg-cond (negated conditional) 
+           Description: If a negated conditional of the form (~ (p ==> q)) holds, then applying 
+           neg-cond to it will produce the conjunction (p & (~ q)). This reflects the definition of 
+           a conditional (p ==> q), according to which (p ==> q) is false if and only if p holds 
+           and q doesn't. Conversely, if (p & (~ q)) holds, then applying neg-cond to it will 
+           derive (~ (p ==> q)). 
+
+  Rule 18: Name: neg-bicond (negated biconditional): 
+           Description: If a negated biconditional of the form (~ (p <==> q)) holds, then applying 
+           neg-bicond to it will produce the disjunction ((p & (~ q)) | ((~ p) & q)). This reflects 
+           the definition of a biconditional (p <==> q), which says that (p <==> q) holds if and only 
+           if p and q both hold or else neither one does. Thus, if (p <==> q) fails, this means that 
+	   either p holds and q doesn't, or q does and p doesn't. Conversely, if the disjunction 
+           ((p & (~ q)) | ((~ p) & q)) holds, applying neg-bicond to it will derive (~ (p <==> q)). 
+
+  Rule 19: Name: from-false (introduction of any sentence from a contradiction):
+           Description: If the constant false currently holds (this is a very important precondition), 
+           then applying from-false to any sentence p will produce the conclusion p. 
+
+  Rule 20: Name: mt (modus tollens)
+           Description: Suppose that two sentences of the form (p ==> q) and (~ q) hold. 
+           Then applying mt to these two sentences will produce the conclusion (~ p). 
+
+  Rule 21: Name: cond-def (conditional definition)
+           Description: Suppose that a conditional (p ==> q) holds. Then applying cond-def to it will 
+           produce the conclusion ((~ p) | q). Conversely, if ((~ p) | q) holds, then applying cond-def 
+           to it will produce the conclusion (p ==> q). 
+
+  Rule 22: Name: bicond-def' (biconditional definition)
+           Description: Suppose that a biconditional (p <==> q) holds. Then applying bicond-def' to it 
+           will produce the conclusion ((p & q) | ((~ p) & (~ q))), which states that either both p and q 
+           hold or neither does. That captures the meaning of the biconditional. Conversely, if a sentence 
+           of the form ((p & q) | ((~ p) & (~ q))) holds, then applying bicond-def' to it will produce 
+           the biconditional (p <==> q). 
+
+  Rule 23: Name: by-contradiction (reasoning by contradiction).
+           Description: This binary rule is applied to sentences of the form p and (p' ==> false), where 
+           p' denotes the complement of p. Assuming that the second argument (p' ==> false) holds, the 
+	   first argument p is produced as the conclusion. This is how reasoning by contradiction is done 
+           in this language: If one wants to derive p by way of contradiction, they first prove the conditional
+           (p' ==> false) and then apply the rule by-contradiction to p and (p' ==> false).
+          
+By the way, when we say that a sentence "holds" in NDL, we mean that it is either a starting premise that 
+was initially asserted; or it is an active hypothesis postulated by a currently open 'assume' subproof; or 
+else it was derived at a previous point in the proof (by a previous element of a proof composition) and 
+remains operative in the current scope. 
+
+4. Conditional (or hypothetical) proofs in NDL are compound (recursive) proofs of the form 
+
+assume p {
+  ...  
+}
+
+where p is the sentence being assumed (the hypothesis) and { ... } is a subproof comprising the *body* 
+of the hypothetical proof and the logical *scope* of the hypothesis p. That is, the hypothesis p remains 
+operative (as a working assumption) anywhere inside the body { ... } and can be freely used as an argument 
+to any inference rule inside that body, as if it were a starting premise. 
+  
+If the body produces a conclusion q, then the entire 'assume p { ... }' proof discharges the assumption 
+p and finally produces the conditional conclusion (p ==> q). The hypothesis p is no longer active after 
+that point. Thus, for instance: 
+
+... 
+assume A { 
+  ... 
+  # Here we are inside the scope of A 
+  assume B { 
+    ... 
+    # Here we are inside the scope of both A and B
+    ... 
+  }; 
+  ... 
+  # Here we are again only inside the scope of A 
+  ... 
+}; 
+... # And here we are outside the scope of both A and B 
+
+Optionally, a name I can be given to the hypothesis of a conditional proof, e.g., 
+one may write 
+
+assume I := p { ... }
+ 
+instead of simply 
+
+assume p { ... }
+
+In the former version, the name I can be used to refer to the formula p anywhere inside the body
+of the conditional proof, { ... }. But this binding of I to p does not remain active outside of
+that body. 
+
+Note that conditional ('assume'-style) proofs are complex and cannot directly follow the 'BY' 
+keyword, so, for example, you can't write "(A ==> B) BY assume A { ... }". The only thing that 
+can follow 'BY' is a primitive inference rule like mp or claim, not a complex proof such as a 
+composition or a conditional proof. Likewise, the only thing that can follow 'on' is a formula, 
+not a proof, so you can't write "C BY mp on assume A { ...}, A;". 
+
+5. In NDL, a pound sign ("#") is used to write comments that extend to the end of the line. 
+Use these generously, as they help to document and explain a proof. 
+
+6. Starting premises are written as follows:
+
+assert <premise-name> := p 
+
+where <premise-name> is an identifier (just an alphanumeric strings starting with an alphabetic 
+letter), and p is any sentence. The identifier <premise-name> can then be used inside the proof 
+to refer to that premise. 
+
+Here are some examples:
+
+# BEGIN_EXAMPLES 
+
+** Example 1: 
+
+Derive: ((A & B) ==> (B & A)):
+
+Proof:
+
+assume p := (A & B) {
+  A BY left-and on p;      # This gives A. The semicolon composes this primitive step with the following two steps. 
+  B BY right-and on p;     # This gives B. The semicolon composes this step with the third and final step. 
+  (B & A) BY both on B, A  # This gives (B & A). Here, B and A hold because they were derived by the previous two steps of the composition. 
+} # This closes the scope of the assumption (A & B) and the entire 'assume' now returns the conditional ((A & B) ==> (B & A)). 
+
+Note again the indentation levels (two whites spaces at each level), and the absence of a 
+semi-colon after the last step (the application of both). 
+
+And also note again that naming individual steps is optional. Here it would have been a bit 
+heavy-handed to write:
+
+assume p := (A & B) {
+  step-1 := A BY left-and on p;          # This gives A
+  step-2 := B BY right-and on p;         # This gives B
+  (B & A) BY both on step-2, step-1      # This gives (B & A)
+} 
+
+** Example 2: 
+
+assert premise-1 := (~ A | ~ B)
+
+Derive: (B ==> ~ A)
+
+Proof:
+
+assume B {
+
+# We have assumed B as a hypothesis, and we now want to derive the conclusion (~ A). 
+# We will proceed by contradiction, by showing that the complement of this conclusion, 
+# namely A, results in a contradiction. That is, we will derive the conditional (A ==> false): 
+
+  assume A {  # By way of contradiction, we are assuming A 
+    # We now perform a case analysis on the disjunctive premise: 
+    case1 := assume (~ A) {
+               absurd on A, (~ A);
+             };
+    case2 := assume (~ B) {
+               absurd on B, (~ B);
+             };
+    # Having shown that either case leads to a contradiction (the constant false), we can now derive false: 
+    cases on premise-1, (~ A ==> false), (~ B ==> false)
+    # We have now derived false, and the entire assume will return (A ==> false)
+  };  
+  # At this point we have (A ==> false) available by the preceding subproof. 
+  # Thus, we can apply by-contradiction to conclude (~ A): 
+  (~ A) BY by-contradiction on (~ A), (A ==> false) 
+} # The outer assume will now return (B ==> (~ A)).  
+
+** Example 3: 
+
+assert premise-1 :=  ((A | B) ==> (C & D))
+assert premise-2 :=  ((C | E) ==> ((~ F) & G))
+assert premise-3 :=  ((F | H) ==> (A & I))
+
+Derive: (~ F)
+
+Proof:
+
+{
+  # By the excluded middle, we must have either F or not F: 
+  F-or-not-F := (F | (~ F)) BY ex-middle on F;
+
+  # We now perform a case analysis by showing that both F and (~ F) imply the desired conclusion, (~ F): 
+
+  F-implies-not-F := 
+    assume F {
+      # We assume F and proceed to derive (~ F) with a chain of careful rule applications: 
+      (F | H) BY left-either on F, H;
+      (A & I) BY mp on premise-3, (F | H);
+      A BY left-and on (A & I);
+      (A | B) BY left-either on A, B;
+      (C & D) BY mp on premise-1, (A | B);
+      C BY left-and on (C & D);
+      (C | E) BY left-either on C, E;
+      ((~ F) & G) BY mp on premise-2, (C | E);
+      (~ F) BY left-and on ((~ F) & G)
+    };
+
+  # The second case is much easier, since (~ F) clearly implies (~ F), though we do need to prove that: 
+  not-F-implies-not-F := 
+    assume (~ F) {
+      claim on (~ F)
+    };
+
+  # At this point our case analysis is complete: 
+
+  cases on F-or-not-F, F-implies-not-F, not-F-implies-not-F
+}
+
+** Example 4: 
+
+assert premise-1 :=  D
+assert premise-2 :=  (~D <==> (C ==> ~A))
+assert premise-3 :=  B
+
+Derive: (C <==> B)
+
+Proof:
+
+{
+  p1 := ((C ==> ~A) ==> ~D) BY right-iff on premise-2;
+  p2 := (~ (C ==> ~A)) BY mt on p1, D;
+  p5 := (C & (~ ~A)) BY neg-cond on p2;
+  C BY left-and on p5;
+  # We will derive (C <==> B) by first deriving the two conditionals (C ==> B) and (B ==> C)
+  # and then using equiv. We start by deriving the conditional (C ==> B): 
+  assume C {
+    # We already have B, so we can just claim it: 
+    B BY claim on B
+  };
+  # Next we derive the conditional in the converse direction, (B ==> C): 
+  assume B {
+  # We have already derived C above, so we can just claim it: 
+    C BY claim on C
+  };
+  # And now we can finally derive the target biconditional by applying equiv: 
+  (C <==> B) BY equiv on (C ==> B), (B ==> C)
+}
+
+** Example 5:
+
+assert premise-1 :=  C
+assert premise-2 :=  B
+assert premise-3 :=  ((C ==> A) | (~ (B & ~A)))
+
+Derive: (A <==> (B ==> C))
+
+Proof:
+
+{
+  # We first derive the conditional (A ==> (B ==> C)): 
+  assume A {
+    # Proceeding by way of contradiction, we'll derive the conditional ((~ (B ==> C)) ==> false): 
+    assume h2 := (~ (B ==> C)) {
+      (B & ~C) BY neg-cond on h2;
+      (~ C) BY right-and on (B & ~C);
+      false BY absurd on C, (~ C)
+    };
+    (B ==> C) BY by-contradiction on (B ==> C), ((~ (B ==> C)) ==> false)
+  };
+  # We'll now derive the conditional ((C ==> A) ==> ((B ==> C) ==> A)): 
+  assume (C ==> A) {
+    # We prove the conditional ((~ ((B ==> C) ==> A)) ==> false): 
+    assume h3 := (~ ((B ==> C) ==> A)) {
+      p3 := ((B ==> C) & ~A) BY neg-cond on h3;
+      (B ==> C) BY left-and on p3;
+      (~ A) BY right-and on p3;
+      (~ C) BY mt on (C ==> A), (~ A);
+      (~ B) BY mt on (B ==> C), (~ C);
+      false BY absurd on (~ B), B
+    };
+    ((B ==> C) ==> A) BY by-contradiction on ((B ==> C) ==> A), ((~ ((B ==> C) ==> A)) ==> false)
+  };
+  # Thus we now have  ((C ==> A) ==> ((B ==> C) ==> A)). We go on to derive ((~ (B & ~A)) ==> ((B ==> C) ==> A)):
+ assume h4 := (~ (B & ~A)) {
+   (~B | A) BY dm on h4;
+   # We'll now derive the conditional (~B ==> ((B ==> C) ==> A)): 
+   assume (~ B) {
+      false BY absurd on B, (~ B);
+      ((B ==> C) ==> A) BY from-false on ((B ==> C) ==> A)
+   };
+   # We'll now derive the conditional (A ==> ((B ==> C) ==> A)): 
+   assume A {
+     assume h5 := (~ ((B ==> C) ==> A)) {
+       p6 := ((B ==> C) & ~A) BY neg-cond on h5;
+       (~ A) BY right-and on p6;
+       false BY absurd on (~ A), A
+     };
+     ((B ==> C) ==> A) BY by-contradiction on ((B ==> C) ==> A), ((~ ((B ==> C) ==> A)) ==> false)
+   };
+   p8 := ((B ==> C) ==> A) BY cases on (~B | A), (~B ==> ((B ==> C) ==> A)), (A ==> ((B ==> C) ==> A))
+ };
+ p9 := ((B ==> C) ==> A) BY cases on premise-3, ((C ==> A) ==> ((B ==> C) ==> A)), ((~ (B & ~A)) ==> ((B ==> C) ==> A));
+ (A <==> (B ==> C)) BY equiv on (A ==> (B ==> C)), p9
+}
+
+
+** Example 6:
+
+assert premise-1 :=  (~ A)
+assert premise-2 :=  ((B ==> C) ==> (C ==> A))
+assert premise-3 :=  ((C & B) | (B <==> ~C))
+
+Derive: B
+
+Proof:
+{
+  # We will proceed with a case analysis on premise-3. In particular, we will show that both cases 
+  # allowed by premise-3 lead to the conclusion (~ (B ==> C)). Once we have derived (~ (B ==> C)) with
+  # this case analysis, neg-cond will give us (B & (~ C)), and then the desired conclusion can be detached
+  # with left-and. 
+  #
+  # To start with the first case of our analysis, we must derive the conditional ((C & B) ==> (~ (B ==> C))): 
+  assume case-1 := (C & B) {
+    # We will prove (~ (B ==> C)) by contradiction. Accordingly, we must derive the conditional ((B ==> C) ==> false),
+    # and we do that by assuming the antecedent (B ==> C) and going on to derive false in the body of the hypothetical subproof: 
+    assume (B ==> C) {
+       # We now have to derive false in the scope of this subproof. We will do this by a case analysis of premise-3,
+       # showing that either case of premise-3 leads to a contradiction under our current assumptions. 
+      (C ==> A) BY mp on premise-2, (B ==> C);
+       # We now tackle the first case of our case analysis, deriving the conditional ((C & B) ==> false) by assuming (C & B)
+       # and deriving a contradiction:  
+       assume case-1 := (C & B) {
+         B BY right-and on case-1;
+         C BY mp on (B ==> C), B;
+         A BY mp on (C ==> A), C;
+         false BY absurd on premise-1, A
+       };
+      # The first case of premise-3 is done, so we now move on to the second case, showing that 
+      # (B <==> ~C) also implies false: 
+      assume case-2 := (B <==> ~C) {
+        false BY mp on ((C & B) ==> false), (C & B)
+      };
+      # Thus, the 'cases' rule now allows us to derive false: 
+      false BY cases on premise-3, ((C & B) ==> false), ((B <==> ~C) ==> false)
+    };
+   # Having established the conditional ((B ==> C) ==> false), by-contradiction allows us to finally derive
+   # the conclusion (~ (B ==> C)): 
+   (~ (B ==> C)) BY by-contradiction on (~ (B ==> C)), ((B ==> C) ==> false)
+  };
+  # The first case allowed by premise-3 is complete, we have shown that (~ (B ==> C)) indeed follows from the case (C & B). 
+  # Moving on to the second case, we go on to derive the conditional ((B <==> ~C) ==> (~ (B ==> C))): 
+  assume case-2 := (B <==> ~C) {
+    (~C ==> B) BY right-iff on case-2;
+    # Proceeding by contradiction, we show (~ (B ==> C)) by establishing the conditional ((B ==> C) ==> false): 
+    assume (B ==> C) {
+      # We must now derive false inside the scope of this assumption
+      p5 := (~ (C & B)) BY mt on ((C & B) ==> (~ (B ==> C))), (B ==> C);
+      (~C | ~B) BY dm on p5;
+      (C ==> A) BY mp on premise-2, (B ==> C);
+      # We now derive the conditional (~C ==> false): 
+      assume (~ C) {
+        B BY mp on (~C ==> B), (~ C);
+        C BY mp on (B ==> C), B;
+        A BY mp on (C ==> A), C;
+        false BY absurd on premise-1, A
+      };
+      # We now derive the conditional (~B ==> false): 
+      assume (~ B) {
+        C BY mt on (~C ==> B), (~ B);
+         A BY mp on (C ==> A), C;
+         false BY absurd on premise-1, A
+      };
+      false BY cases on (~C | ~B), (~C ==> false), (~B ==> false)
+    };
+    # Having show that (B ==> C) entails false, we can derive its negation: 
+    (~ (B ==> C)) BY by-contradiction on (~ (B ==> C)), ((B ==> C) ==> false)
+  };
+  p7 := (~ (B ==> C)) BY cases on premise-3, ((C & B) ==> (~ (B ==> C))), ((B <==> ~C) ==> (~ (B ==> C)));
+ (B & ~C) BY neg-cond on p7;
+ B BY left-and on (B & ~C)
+}
+
+# END_EXAMPLES 
+
+Now here's the proof you need to write: 
+
+<<< INPUT HERE >>>
+
+As specified earlier, your output should be a JSON dictionary of this form: 
+{'description': <English description>,
+ 'proof': <formal proof>}
+where <form proof> is a string representing a valid NDL proof, strictly adhering to the syntax 
+specified above. Your <formal proof> should not contain the assertions, i.e., it should not start 
+with "assert premise-1 := ...". These assertions have already been given to you, there's no need 
+to repeat them. 
+
+Your output proof must also adhere to the syntax of this language, especially to the following rules: 
+
+(1) All composite  proofs (where several steps are joined with semicolons) *must* be enclosed 
+within curly braces. So you can't output a proof like this:
+
+  ... BY left-iff  on premise-1
+  ... BY right-iff on premise-1; 
+  assume ... { 
+     ...
+  } 
+
+Because the above is a composite proof, it MUST be enclosed within curly braces:
+
+{
+  ... BY left-iff  on premise-1
+  ... BY right-iff on premise-1; 
+  assume ... { 
+     ...
+  } 
+}
+
+(2) The intermediate steps of a composite  proof must be separated by semicolons. 
+
+(3) Complex (non-atomic) formulas must be fully parenthesized. For instance, (A & B) ==> C is not 
+a syntactically valid formula because it's missing an outer pair of parentheses. It should instead be 
+written as ((A & B) ==> C). Negations, in particular, must always be parenthesized. ~B is not 
+syntactically valid - it should be (~ B) instead. (Although, as mentioned earlier, inside complex 
+subformulas, parentheses around negations are optional.)
+
+(4) You must NOT combine two uses of 'BY' or 'on' in a single step. Each step must have at most 
+one occurrence of 'BY' and 'on'.
+
+These rules are crucial. If your proof doesn't adhere to them, you are breaking the syntax of 
+the language. 
+
+Any English text inside the proof (comments or explanations etc.) must appear as comments 
+("## <comment text here>"). 
+
+Your output must be only the above JSON dictionary, {'proof': <proof>, 'description': <English description>}, 
+nothing else, where, again, <proof> should not repeat the given assertions. 

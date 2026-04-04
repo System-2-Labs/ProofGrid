@@ -1,0 +1,309 @@
+You will be asked to write a Fitch-style natural-deduction proof for a propositional-logic problem 
+that consists of a number of premises and a given conclusion. Your output will be a JSON dictionary 
+with two keys: {"description": <English description of the proof>, "proof": <formal proof>}, 
+where <formal proof> will be your proof and <English description of the proof> will be a high-level 
+description of the strategy behind the proof. Your output must be only the above JSON dictionary, 
+nothing else. 
+                                                                                                          
+A formula p here is either an atom like A, B, C, D, E, A1, B2, A3, E4, A5, A1_2, E3_59, etc., or else: 
+a negation, of the form (~ p); a conjunction, of the form (p1 & p2); a disjunction, of the form (p1 | p2); 
+a conditional (p1 ==> p2); or a biconditional (p1 <==> p2). Precedence and associativity are as follows: 
+Negation binds the tightest, followed by conjunction, disjunction, conditionals and biconditionals, in
+that order. All binary logical constructors associate to the right, so (A & B & C) is (A & (B & C)). 
+Thus, (~A & B ==> C | D) should be understood as (((~ A) & B) ==> (C | D)), and these two formulas 
+should be considered identical, given the precedence and associativity conventions just specified. 
+
+Every complex (non-atomic) formula must be parenthesized, but inside complex formulas, parentheses 
+around negations are optional. Thus, you can write (~A & ~B) as a shorthand for ((~ A) & (~ B)). 
+But you may not write ~A, because that is a complex sentence (a negation) and thus it must have at least 
+one outer pair of parentheses; it should instead be written as (~ A). While you should try to parenthesize 
+fully in order to eliminate ambiguity, do not insert redundant/superfluous pairs of parentheses, e.g., 
+do not write ((A & B)) or (((~A))). These should be written simply as (A & B) and (~ A). 
+
+Your proof must be written in a formal language called NDL, which implements Fitch-style natural 
+deduction. In this language, proofs have formal syntax and semantics.
+
+An NDL proof is either an application of the inference rule 'from' to a number of formulas; 
+or a composite proof, built by stringing together a number of other proofs; or a hypothetical 
+(conditional) proof. Applications of the 'from' rule are primitive proofs with no internal structure, 
+while composite and hypothetical proofs are compound, having recursive structure. 
+
+More specifically: 
+
+1. A primitive NDL proof is a single-line application of the form "p from p_1, ..., p_n".
+We refer to the formulas p_i as the "justifiers" of this inference step. We must have n <= 5, 
+i.e., there can never be more than 5 comma-separated justifiers. 
+
+The objective of such a "from" step is to derive p from the justifiers p_1,...,p_n; 
+if p does follow logically from p_1,...,p_n, then it becomes the *conclusion* of this step; 
+but if p does not follow, then the step results in an error. So every time you write 
+a "from" step, you must make absolutely sure that:
+(a) the advertised conclusion p follows logically from the listed justifiers (i.e., 
+that it's impossible for the justifiers to hold without the conclusion p holding as well); and
+(b) n <= 5, i.e., there are no more that 5 justifiers. 
+
+[When we say that p follows logically from p_1,...,p_n, we mean the classical definition of 
+logical consequence: there is no interpretation that satisfies every p_i but falsifies p.]
+
+Such a step can optionally be given an arbitrary name (identifier) I, by writing it as follows:
+'I := p from p_1,...,p_n'. The name I can then be used to refer to the conclusion p later in
+the proof (though only inside the same block where it was introduced; see the information below 
+concerning scope). Thus, the full syntax of such a step is either "p from p_1, ..., p_n" OR 
+"I := p from p_1, ..., p_n". 
+
+Accordingly, a justifier p_i can be either: 
+
+* a fully written out formula, e.g., (A ==> B); or 
+
+* the name of a formula, e.g. lemma-34, where lemma-34 was introduced by a previous step 
+of the form 'lemma-34 := p from p_1, ..., p_n" and remains active; or 
+
+* the name of a premise, given by a initial declaration like 'assert premise-3 := ...'; 
+or, finally: 
+
+* the name of a hypothesis introduced by a conditional proof (see below), which also 
+remains currently active. 
+
+2. Multiple proofs D_1, ..., D_n, D_{n+1} can be combined into a single Fitch-style block 
+by enclosing them within curly braces and separating them with semicolons:
+
+{
+  D_1;
+  ...
+  D_n;
+  D_{n+1} 
+} 
+
+Note the indentation (by two blanks). Also note that a semicolon after the last element (D_{n+1}) 
+is optional. 
+
+Composition is how lemma formation works in NDL: The conclusion of each D_i becomes logically 
+available to every subsequent D_j for j > i, i.e., every such D_j can use the conclusion of D_i 
+as if it were a premise. 
+
+Consider, for instance, the two-step composition
+{ 
+  (~ B) from (A ==> ~B), A;
+  (C & ~B) from C, (~ B) 
+}
+
+Here, (~ B) is derived by the fist step and hence it can be freely used as a justifier 
+for the following step. 
+
+Note the following important point: The conclusion produced by the entire composition {D_1; ...; D_n; D_{n+1}} 
+is the conclusion of the very last element of the composition, i.e., the conclusion of the proof D_{n+1}. 
+In the above example,the conclusion produced by the two-element composition 
+
+{ 
+  (~ B) from (A ==> ~B), A;
+  (C & ~B) from C, (~ B)
+}
+
+is the conclusion produced by the second proof step, namely (C & ~B). 
+
+When we say that a formula "holds" in NDL, we mean that it is either a starting premise that was initially 
+asserted; or it is an active hypothesis postulated by a currently open 'assume' subproof; or else it was derived 
+at a previous point in the proof (by a previous subproof) and remains operative in the current scope. 
+
+4. Conditional (or hypothetical) proofs in NDL are compound (recursive) proofs of the form 
+
+assume p {
+  ...  
+}
+
+where p is the formula being assumed (the hypothesis) and { ... } is a subproof comprising the *body* of the hypothetical proof
+and the logical *scope* of the hypothesis p. That is, the hypothesis p remains operative (as a working assumption) anywhere 
+inside the body { ... } and can be freely used as an argument to any inference rule inside that body, as if it were a starting premise. 
+  
+If the body produces a conclusion q, then the entire 'assume p { ... }' proof discharges the assumption p and 
+finally produces the conditional conclusion (p ==> q). The hypothesis p is no longer active after that point. 
+Thus, for instance: 
+
+...
+assume A { 
+   ... 
+
+   # Here we are inside the scope of A 
+
+   assume B { 
+     ... 
+
+     # Here we are inside the scope of both A and B
+     ... 
+   }; 
+  ... 
+     # Here we are again only inside the scope of A 
+}; 
+
+... # And here we are outside the scope of both A and B 
+
+A hypothesis may also be named, so a conditional proof may be of the form 
+
+  assume I := p {
+    ...  # Inside this scope, the identifier I can be used to refer to the formula p. 
+  }
+  # At this point we are outside the scope of the assume, so the identifier I no longer refers to p! 
+
+Note that the name I has limited scope: it can ONLY be used to refer to the hypothesis p inside the scope of p, 
+i.e., inside the proof block demarcated by the curly braces. Unless explicitly reintroduced, the name I will not 
+refer to anything outside of that block. 
+
+In general, names introduced inside a block { ... } are ONLY visible inside that block, not outside. 
+Thus, for example:
+
+          ... 
+          assume ... {
+            foo := ....
+            ... # foo is fine to use here 
+          };
+          # But now we are outside of the scope where foo was introduced, so the name is no longer bound to anything. 
+          (A & B) from foo, ... # <-- ERROR: foo IS NO LONGER VISIBLE HERE! 
+      
+Be very mindful of the scope of every single name in a proof. 
+
+6. In NDL, a pound sign ("#") is used to write comments that extend to the end of the line. 
+Comments should be widely used to clarify NDL proofs. 
+
+7. Starting premises are written as follows:
+
+assert <premise-name> := p 
+
+where <premise-name> is an identifier (just an alphanumeric strings starting with an alphabetic letter,
+typically something like 'premise-3' or 'premise-12') and p is any formula. The identifier <premise-name> 
+can then be used inside the proof to refer to that premise. 
+
+Reasoning by contradiction can be performed by combining hypothetical proofs and 'from' steps. In particular,
+to prove a goal p by contradiction, it suffices to prove the conditional (~p ==> false). We can then derive p
+with a 'from' step like this: 'p from (~p ==> false)'. 
+
+The constant 'false' can be derived with a 'from' step by listing any two contradictory sentences p and (~ p) that
+currently hold as justifiers:
+
+false from p, (~ p)
+
+Here are a couple of examples of NDL proofs:
+
+# BEGIN_EXAMPLES
+
+** Example 1: 
+
+-- Input: 
+assert premise-1 := ((~A & B) ==> (A & C))
+assert premise-2 := B 
+
+Derive: A 
+
+NDL Proof:
+
+{
+  # We will proceed by contradiction. Assume the negation of the desired conclusion, (~A):
+  assume (~A) {
+    # From the hypothesis (~A) and the premise B, we can conclude (~A & B):
+    (~A & B) from (~A), premise-2;  
+    # But now we can use this with premise-1 to infer (A & C)
+    (A & C)  from premise-1, (~A & B); 
+    # And if we have (A & C), we clearly have A: 
+    A from (A & C); 
+    # But this explicitly contradicts our assumption, (~ A), so we can conclude false: 
+    false from A, (~A)
+  }; 
+  # At this point, the preceding conditional subproof has derived the conditional (~A ==> false). 
+  # Thus, reasoning by contradiction now allows us to derive our goal A:
+  A from (~A ==> false) 
+}
+
+** Example 2: 
+
+-- Input: 
+assert premise-1 := A1
+assert premise-2 := (~A2 ==> ~A1)
+assert premise-3 := (A2 ==> A3)
+assert premise-4 := (~A4 ==> ~A3)
+assert premise-5 := (~A5 ==> ~A4)
+assert premise-6 := (~A6 ==> ~A2 | ~A5)
+assert premise-7 := (A6 & ~A7 ==> ~A3 | ~A2)
+assert premise-8 := (A3 & A6 & ~A8 & A7 & A4 & A2 ==> ~A1)
+
+Derive: A8
+
+{
+  # We can derive A2-A7 by simple incremental chaining: 
+  A2 from premise-1, premise-2;
+  A3 from A2, premise-3;
+  A4 from A3, premise-4;
+  A5 from A4, premise-5;
+  A6 from A2, A5, premise-6;
+  A7 from A6, A2, A3, premise-7;
+  # We can now rule out a number of the alternatives listed by premise-8: 
+  lemma := (~A6 | ~A7 | A8) from A1, A2, A3, A4, premise-8;
+  # And by further ruling out (~A6) and (~A7), we get our goal A8: 
+  A8 from lemma, A6, A7;
+}
+
+# END_EXAMPLES
+
+Now here's the particular problem instance you need to solve:
+
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+ACTUAL INPUT PROBLEM HERE 
+
+assert premise-1 := (~A2)
+....
+assert premise-32 := (~A10 ==> ~A7)
+
+Derive: ... 
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+As specified earlier, your output should be a JSON dictionary of this form: {description': <English description>, 
+'proof':<proof>}, where <proof> is a string representing a valid proof in NDL, strictly adhering to the syntax 
+specified above. Your <proof> should NOT contain the assertions, i.e., it should not start with 
+"assert premise-1 := ...". These assertions have already been given to you, there's no need to repeat them. 
+Your <proof> should only contain the actual proof. 
+
+Your output <proof> must also adhere to the syntax of this language, especially to the following four rules: 
+
+(1) All composite  proofs (where several steps are joined with semicolons) must be enclosed within curly braces. 
+
+(2) ALL intermediate proof steps MUST be separated by semicolons. You cannot write something like:
+
+    ... 
+    foo := (A & B) # <--- FORGOTTEN SEMICOLON HERE!!!!!
+    assume ...
+
+There must be a semicolon separating the step "foo := (A & B)" from  "assume ...", written as:
+    ... 
+    foo := (A & B);
+    assume ...
+
+(3) Complex (non-atomic) formulas must be fully parenthesized. For instance, (A & B) ==> C is not a syntactically
+valid formula because it's missing an outer pair of parentheses. It should instead be written as ((A & B) ==> C).
+Top-level negations, in particular ("top-level" meaning that these are negations that are not contained inside 
+any other formulas). A free-floating ~B is not syntactically valid - it should be (~ B) instead. 
+
+(4) Be aware the limited lexical scope of variables (identifier names). If you introduce a variable strictly 
+    inside a block { ... }, this variable will NOT be visible outside of that block. For example,
+    ... 
+    assume ... {
+      foo := ....
+      ... # foo is fine to use here 
+    };
+    # But now we are outside of the scope where foo was introduced.
+    (A & B) from foo, ... # <-- ERROR: foo IS NO LONGER VISIBLE HERE! 
+
+These rules are crucial. If your proof doesn't adhere to them, you are breaking NDL's syntax. 
+
+Any English text inside the proof (comments or explanations etc.) must appear as comments ("# <comment text here>"). 
+Use comments liberally. 
+
+Finally, do not use 'from' steps to simply consolidate a large number of premises into one single uber-formula
+from which you can then trivially derive the goal with a single 'from' step. This will be considered cheating
+and will be given zero credit.       
+
+Your proof MUST be written in complete and full detail. Do NOT omit any parts by claiming, for example, 
+that "this case is similar to the one above" or that "the details here are analogous and we omit them"
+or that "we skip these steps for brevity". Show all work in full. If you skip details you will get zero credit.
+
+Your output must be only the above JSON dictionary, {'description': <English description>, 'proof': <proof>}, 
+nothing else, where, again, <proof> should not repeat the given assertions.

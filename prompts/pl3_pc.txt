@@ -1,0 +1,415 @@
+Your objective is to check whether a proof for a propositional-logic problem is correct. The problem 
+consists of a number of formulas p_1, ..., p_n that are taken as premises (n >= 0) and a goal p, 
+which is a single target formula representing the desired conclusion. A formula p is either an atom 
+like A, B, C, D, E, A1, A1_2, B5_7, ..., as well as true and false, or else it is a "complex" formula, 
+namely, one of the following: a negation, of the form (~ p); a conjunction, of the form (p1 & p2); 
+a disjunction, of the form (p1 | p2); a conditional (p1 ==> p2); or a biconditional (p1 <==> p2). 
+
+Precedence and associativity are as follows: Negation binds the tightest, followed by conjunction, 
+disjunction, conditionals and biconditionals. All binary logical constructors associate to the right. 
+Thus, for instance, (~A & B ==> C | D) should be understood as (((~ A) & B) ==> (C | D)), and these 
+two formulas should be considered identical, and the same as (~A & B ==> (C | D)), or ((~A & B) ==> C | D), 
+or ((~A) & B ==> (C | D)), and so on; all of these are identical, given the precedence and associativity 
+conventions just specified. 
+
+The question you must answer is whether the given proof correctly derives the goal p from the premises 
+p_1, ..., p_n. Your output must be a JSON record with two keys:
+
+{"correct": <true or false, according to whether or not the input proof is correct>,
+ "errorDetails":   <if the proof is correct, this should be the empty dictionary, {}. If the proof is 
+                    incorrect, this dictionary should have 4 keys whose values collectively specify  
+		    the first (topmost) error found in the proof, scanning the text from top to bottom 
+                    and from  left to right. Here are these keys:
+
+                    {"offendingLine": <the line of the proof containing the error (if such a line exists), 
+		                       reprinted verbatim as it appears in the proof>,
+
+                     "offendingLineNumber": <the number of the offending line (needed for disambiguation 
+		                             purposes, since the same line might have multiple occurrences 
+					     in the proof)>,
+
+                     "errorType" <one of three values: "syntax", "type", or "logic">;
+
+                     "errorDescription": <a detailed description of the error, including a counterexample,
+		                          when applicable.>}}
+
+The input proof is written in NDL (short for "Natural Deduction Language"), a formal language implementing 
+natural deduction. In this language, proofs have formal syntax and semantics. 
+
+In particular, an NDL proof is either an application of the inference rule 'from' to a number of formulas; 
+or a composite proof, built by stringing together a number of other proofs; or a hypothetical 
+(conditional) proof. Applications of the 'from' rule are primitive proofs with no internal structure, 
+while composite and hypothetical proofs are compound, having recursive structure. 
+
+More specifically: 
+
+*** Comments
+
+In NDL, a pound sign ("#") is used to write comments that extend to the end of the line. 
+Comments are widely used to clarify the reasoning of NDL proofs. 
+
+*** Primitive Proofs 
+
+A primitive NDL proof is a single-line application of the form "p from p_1, ..., p_n".
+We refer to the p_i as the "justifiers" of this inference step. We must have n <= 5, i.e., 
+there can never be more than 5 comma-separated justifiers. If n > 5, you should flag this
+as a "type error". 
+
+The objective of such a "from" step is to derive p from the justifiers p_1,...,p_n; 
+if p does follow logically from p_1,...,p_n, then it becomes the *conclusion* of this step; 
+but if p does not follow, then the step results in an error. So every time you see a "from" step, 
+you must make absolutely sure that that the following two conditions hold: 
+
+(I) n <= 5, i.e., there are no more that 5 justifiers. Again, if n > 5 you should report an
+error with errorType == "type". 
+
+(II) The advertised conclusion p follows logically from the listed justifiers (i.e., 
+it's impossible for the justifiers to hold without the conclusion p holding as well). 
+If that's not the case, it should be reported as a "logic" error and your errorDescription
+should include a counterexample showing why that is not the case. A counterexample is an 
+interpretation of all the atoms (atomic sentences) that occur in p_1,...,p_n, p that makes 
+each p_i true and p false. For instance, if the step is 
+
+(~ B) from (A ==> B), (~ A)
+
+then your counterexample could be A: false, B: true. This interpretation makes both of the 
+"arguments" (A ==> B) and (~ A) true, while also making the conclusion (~ B) false. 
+
+[By the way, when we say that p follows logically from p_1,...,p_n, we mean the classical 
+definition of logical consequence: there is no interpretation that satisfies every p_i but 
+falsifies p.]
+
+Such a step can *optionally* be given an arbitrary name (identifier) I, by writing it as follows:
+'I := p from p_1,...,p_n'. The name I can then be used to refer to the conclusion p later on in
+the proof (but only inside the same block where it was introduced; see the information below 
+concerning scope and proof blocks). 
+
+Thus, the full syntax of such a step is either "p from p_1, ..., p_n" OR "I := p from p_1, ..., p_n". 
+Both are acceptable. 
+
+A justifier p_i can be either: 
+
+* an inlined (fully written out) formula, e.g., (A ==> (B | ~C)); or 
+
+* the name of a formula, e.g. lemma-34, where lemma-34 was introduced by a previous step 
+of the form 'lemma-34 := p from p_1, ..., p_n" and remains active; or 
+
+* the name of a premise, given by a initial declaration like 'assert premise-3 := ...'; 
+or, finally: 
+
+* the name of a hypothesis introduced by a conditional proof (see below), as long as that
+hypothesis is also currently active. 
+
+*** Compositions
+
+Multiple proofs D_1, ..., D_n, D_{n+1} can be combined into a single proof block 
+by enclosing them within curly braces and separating them with semicolons:
+
+{
+  D_1;
+  ...
+  D_n;
+  D_{n+1} 
+} 
+
+Note the indentation (by two blanks). Also note that a semicolon after the last element (D_{n+1}) 
+is optional. It may or may not appear - either is acceptable. 
+
+Composition is how lemma formation works in NDL: The conclusion of each D_i becomes logically 
+available to every subsequent D_j for j > i, i.e., every such D_j can use the conclusion of D_i 
+as if it were a premise. 
+
+Consider, for instance, the two-step composition
+{ 
+  (~ B) from (A ==> ~B), A;
+  (C & ~B) from C, (~ B) 
+}
+
+Here, (~ B) is derived by the fist step and hence it can be freely used as a justifier 
+on the following step. 
+
+Note the following important point: The conclusion produced by the entire composition {D_1; ...; D_n; D_{n+1}} 
+is the conclusion of the very last element of the composition, i.e., the conclusion of the trailing proof D_{n+1}. 
+In the above example,the conclusion produced by the two-element composition 
+
+{ 
+  (~ B) from (A ==> ~B), A;
+  (C & ~B) from C, (~ B)
+}
+
+is the conclusion produced by the second proof step, namely the conjunction (C & ~B). 
+
+When we say that a formula "holds" in NDL, we mean that it is either a starting premise that was 
+asserted before the start of the proof; or it is an active hypothesis postulated by a currently open 
+'assume' subproof; or else it was derived at a previous point in the proof (by a previous subproof) 
+and remains operative in the current scope. 
+
+*** Conditional proofs
+
+Conditional (or hypothetical) proofs in NDL are compound (recursive) proofs of the form 
+
+assume p {
+  ...  
+}
+
+where p is the formula being assumed (the "hypothesis") and { ... } is a subproof comprising the *body* 
+of the hypothetical proof, which also represents the logical *scope* of the hypothesis p. That is, 
+the hypothesis p remains operative (as a working assumption) anywhere inside the body { ... } and 
+can be freely used as an argument to any "from" step inside that body, as if it were a starting premise. 
+  
+If the body ... produces a conclusion q, then the entire 'assume p { ... }' proof discharges the assumption p and 
+finally produces the conditional conclusion (p ==> q). The hypothesis p is no longer active after that point. 
+Thus, for instance: 
+
+...
+assume A { 
+   ... 
+
+   # Here we are inside the scope of A 
+
+   assume B { 
+     ... 
+
+     # Here we are inside the scope of both A and B
+     ... 
+   }; 
+  ... 
+
+  # Here we are again only inside the scope of A 
+
+  ... 
+
+}; 
+
+... # And here we are outside the scope of both A and B 
+
+A hypothesis may also be named, so a conditional proof may be of the form 
+
+  assume I := p {
+
+    ...  # Inside this scope, the identifier I can be used to refer to the formula p. 
+
+  }
+
+  # At this point we are outside the scope of the assume, so the identifier I no longer refers to p. 
+
+Note that the name I has limited scope: it can only be used to refer to the hypothesis p inside the scope of p, 
+i.e., inside the proof block demarcated by the curly braces. Unless explicitly reintroduced later, 
+the name I will not refer to anything outside of that block. 
+
+In general, names introduced inside a block { ... } are ONLY visible inside that block, 
+not outside. Thus, for example:
+
+          ... 
+          assume ... {
+            foo := ....
+            ... # foo is fine to use here 
+          };
+          # But now we are outside of the scope where foo was introduced, so the name 
+	  # is no longer bound to anything. 
+
+          (A & B) from foo, ... # <-- ERROR: foo is no longer visible here! 
+
+*** Initial Premises
+
+The starting premises of the proof are written as follows:
+
+assert <premise-name> := p 
+
+where <premise-name> is an identifier (just an alphanumeric strings starting with an 
+alphabetic letter, typically something like 'premise-3' or 'premise_12') and p is any formula. 
+The identifier <premise-name> can then be used inside the proof to refer to that premise. 
+
+*** Reasoning by contradiction 
+
+Reasoning by contradiction can be performed by combining hypothetical proofs and 'from' steps. 
+In particular, to prove a goal p by contradiction, it suffices to prove the conditional (~p ==> false). 
+We can then derive p with a 'from' step like this: 'p from (~p ==> false)'. 
+
+The constant 'false' can be derived with a 'from' step by listing any two contradictory 
+sentences p and (~ p) that currently hold as justifiers:
+
+false from p, (~ p)
+
+Here are a few examples of correct NDL proofs:
+
+# BEGIN_EXAMPLES
+
+** Example 1: 
+
+-- Input: 
+assert premise-1 := ((~A & B) ==> (A & C))
+assert premise-2 := B 
+
+Derive: A 
+
+NDL Proof:
+{
+  # We will proceed by contradiction. Assume the negation of the desired conclusion, (~A):
+  assume (~A) {
+    # From the hypothesis (~A) and the premise B, we can conclude (~A & B):
+    (~A & B) from (~A), premise-2;  
+    # But now we can use this with premise-1 to infer (A & C)
+    (A & C) from premise-1, (~A & B); 
+    # And if we have (A & C), we clearly have A: 
+    A from (A & C); 
+    # But this explicitly contradicts our working assumption, (~ A), so we can conclude false: 
+    false from A, (~A)
+  }; 
+  # At this point, the preceding conditional subproof has derived the conditional (~A ==> false). 
+  # Thus, reasoning by contradiction now allows us to derive our goal A:
+  A from (~A ==> false) 
+}
+-- Proper Output: 
+{"correct": true,
+ "errorDetails": {}}
+
+** Example 2: 
+
+-- Input: 
+
+assert premise-1 := A1
+assert premise-2 := (~A2 ==> ~A1)
+assert premise-3 := (A2 ==> A3)
+assert premise-4 := (~A4 ==> ~A3)
+assert premise-5 := (~A5 ==> ~A4)
+assert premise-6 := (~A6 ==> ~A2 | ~A5)
+assert premise-7 := (A6 & ~A7 ==> ~A3 | ~A2)
+assert premise-8 := (A3 & A6 & ~A8 & A7 & A4 & A2 ==> ~A1)
+
+Derive: A8
+
+NDL Proof:
+{
+  # We can derive A2-A7 by simple incremental chaining: 
+  A2 from premise-1, premise-2;
+  A3 from A2, premise-3;
+  A4 from A3, premise-4;
+  A5 from A4, premise-5;
+  A6 from A2, A5, premise-6;
+  A7 from A6, A2, A3, premise-7;
+  # We can now rule out a number of the alternatives listed by premise-8: 
+  lemma := (~A6 | ~A7 | A8) from A1, A2, A3, A4, premise-8;
+  # And by further ruling out (~A6) and (~A7), we get our goal A8: 
+  A8 from lemma, A6, A7;
+}
+-- Proper Output: 
+{"correct": true,
+ "errorDetails": {}}
+
+** Example 3: 
+
+-- Input:
+
+assert premise-1 := A1
+assert premise-2 := A2
+assert premise-3 := (A2 ==> A3)
+assert premise-4 := (A3 ==> A4)
+assert premise-5 := (A4 ==> A5)
+assert premise-6 := (A6 ==> A5)
+assert premise-7 := (A6 ==> A7)
+assert premise-8 := (A5 ==> A7)
+
+Derive: (A1 & A7)
+
+NDL Proof:
+{
+  lemma-1 := A3 from premise-2, premise-3;
+  lemma-2 := A6 from lemma-1, premise-4, premise-5, premise-6;
+  (A1 & A7) from premise-1, lemma-2, premise-7
+}
+-- Proper Output: 
+{"correct": false, 
+ "errorDetails": {"offendingLine": "  lemma-2 := A6 from lemma-1, premise-4, premise-5, premise-6;",
+                  "offendingLineNumber": 3,
+                  "errorType": "logic",
+                  "errorDescription": "A6 does not follow from the given arguments to 'from', which are lemma-1 (A3), 
+                                       premise-4 (A3 ==> A4), premise_5 (A4 ==> A5), and premise-6 (A6 ==> A5).
+                                       Counterexample: {A3: true, A4: true, A5: true, A6: false}. 
+                                       In this counterexample, each of the four arguments to 'from' are
+                                       satisfied but the putative conclusion, namely A6, is not."}
+}
+
+** Example 4: 
+
+-- Input:
+
+assert premise-1 := A1
+assert premise-2 := A2
+assert premise-3 := (A2 ==> A3)
+assert premise-4 := (A3 ==> A4)
+assert premise-5 := (A4 ==> A5)
+assert premise-6 := (A5 ==> A6)
+assert premise-7 := (A6 ==> A7)
+
+Derive: (A1 & A7)
+
+NDL Proof:
+{
+  lemma-1 := A3 from premise-2, premise-3;
+  lemma-2 := A6 from lemma-1, premise-4, premise-5, premise-6;
+  conclusion := A7 from lemma-5, premise-7
+}
+-- Proper Output:        
+{
+ "correct": false, 
+ "errorDetails": {"offendingLine": "  conclusion := A7 from lemma-5, premise-7",
+                  "offendingLineNumber": 4,
+                  "errorType": "syntax",
+                  "errorDescription": "lemma-5 is not defined at that point in the proof."}
+}
+
+
+** Example 5: 
+
+-- Input:
+
+assert premise-1 := A1
+assert premise-2 := A2
+assert premise-3 := (A2 ==> A3)
+assert premise-4 := (A3 ==> A4)
+assert premise-5 := (A4 ==> A5)
+assert premise-6 := (A5 ==> A6)
+assert premise-7 := (A6 ==> A7)
+
+Derive: (A1 & A7)
+
+NDL Proof:
+{
+  lemma-1 := A7 from premise-2, premise-3, premise-4, premise-5, premise-6, premise-7;
+  conclusion := (A1 & A7) from premise-1, lemma-1
+}
+-- Proper Output:        
+{"correct": false, 
+ "errorDetails": {"offendingLine": "  lemma-1 := A7 from premise-2, premise-3, premise-4, premise-5, premise-6, premise-7;",
+                  "offendingLineNumber": 2,
+                  "errorType": "type",
+                  "errorDescription": "More than 5 arguments to 'from'."}
+}
+
+# END_EXAMPLES
+
+In summary, an incorrect proof may have three types of errors: 
+
+(1) A syntax error, which can be either relatively trivial, such as an extra or a missing semicolon, an unclosed curly brace, 
+a formula with slightly unbalanced parentheses, and so on; or else a reference to an undefined identifier. You should flag
+the latter but generally ignore the former (unless the syntax error is so severe that a coherent and unambiguous proof 
+cannot be salvaged from the given text).
+
+(2) A "type" error, such as a 'from' step with more than 5 arguments. 
+
+(3) A logic error, where, for example, a from step may use as justifiers formulas that simply don't hold at that particular point 
+in the proof, or it may try to derive a conclusion that does not follow from the given justifiers (the arguments given to 'from').
+In the latter case you should make sure to provide a counterexample that demonstrates why the ostensible conclusion does not
+actually follow. Finally, note that a proof could be error-free but nevertheless derive the wrong conclusion. 
+For the proof to be correct, it *must* derive the target conclusion for the given problem, not just any conclusion. 
+Note that in such a case, where the proof is technically correct but fails to derive the expected conclusion, the key 
+"offendingLine" should be given the empty string as its value (since there is no one single offending line), and 
+the key "offendingLineNumber" should be given the value 0. The "errorType" key in that case should be "logic" and your
+"errorDescription" should explain that the proof does not derive the expected conclusion. 
+
+Recall again that if you reject a proof on account of a 'from' step whose conclusion p is not entailed by the 
+supporting formulas p_1,...,p_n, then your 'errorDescription' must include an interpretation that satisfies each 
+p_i but falsifies p. 
+
+Now here is the input problem and the input proof you need to evaluate:

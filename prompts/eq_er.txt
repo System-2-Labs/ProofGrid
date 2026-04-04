@@ -1,0 +1,263 @@
+You will be given an equational proof as a sequence of steps, and a set of equational axioms 
+that collectively underwrite the proof. Your objective is to determine, for each step in the proof, 
+which of the given equational axioms, if any, justify that particular step. 
+
+The proof is given as a chain of steps that incrementally rewrite a starting term to 
+an ending term. In particular, the proof consists of the following:
+
+(1) a set EQN comprising m > 0 named equations E_1,...,E_m; and 
+
+(2) a sequence of n+1 steps S_0, S_1, ..., S_n. Each step S_i consists simply of a term t_i, 
+denoted by term(S_i). The term of the first step S_0, term(S_0), is the starting term, 
+and the term of the last step, term(S_n), is the ending term.
+
+Your objective is to do the following for each step S_i where i > 0: single out a minimal 
+set of equations drawn from EQN, call that set EQN(S_i), such that the equations in EQN(S_i) 
+license the passage from term(S_{i-1}) to term(S_i). That is, the equations you choose for 
+EQN(S_i) must prove that the term of that step can be derived from the term of the preceding 
+step by simple equational reasoning. (Exactly what is meant by "simple equational reasoning" 
+will be clarified in detail shortly.) The set should be minimal in that it must not contain 
+any redundant elements; every equation in it must be necessary for justifying the step in question.
+
+If term(S_i) does not follow from term(S_{i-1}) by the sort of simple equational reasoning 
+we are about to define, then you should output the empty set of equations. 
+
+In particular, your output should be a JSON dictionary with two keys, "explanation" and 
+"stepJustifications". The value of "explanation" should be a text (a plain string) that explains 
+your strategy in detail - how you went about figuring out the answers for the various steps. 
+If you found any step(s) particularly challenging, this is the place to discuss those challenges
+and explain how you handled them. 
+
+The value of "stepJustifications" should be  a list of n JSON dictionaries, one for each of 
+the n steps in the proof: S_1, S_2, ..., S_n. Each of these n dictionaries in your output list 
+should have two keys, "step" and "supportingEquations", where the value of the former is an integer 
+and the value of the latter is a list of strings representing  equation names: 
+
+[{"step": 1, "supportingEquations": <EQN(S_1), i.e., the (names of the) equations justifying the passage from term(S_0) to term(S_1)>},
+ {"step": 2, "supportingEquations": <EQN(S_2), the (names of the) equations justifying the passage from term(S_1) to term(S_2)>}, 
+ ...
+ {"step": n, "supportingEquations": <EQN(S_n), the (names of the) equations justifying the passage from term(S_{n-1}) to term(S_n)>}]. 
+
+Thus, given your choices for each EQN(S_i), i > 0, the full proof will be schematically 
+understood as follows:
+
+    term(S_0)
+  = term(S_1)  by EQN(S_1)
+  = term(S_2)  by EQN(S_2)
+  ... 
+  = term(S_n)  by EQN(S_n)
+
+Here is a simple example, with g(a,f(b)) as the starting term, g(f(f(f(b))),a) as the ending term, 
+and EQN comprising just two equations E1: f(X) = f(f(X) and E2: g(X,Y) = g(Y,X). Variable names start 
+with upper-case letters, whereas the names of function symbols and constants start with lower-case 
+letters. Every equation is understood to be universally quantified over all the variables that occur in it, 
+so E2, for example, should be understood as (forall X, Y . g(X,Y) = g(Y,X)). The given proof has 4 steps: 
+
+s = g(a,f(b))            # Step S_0
+  = g(f(b),a)            # Step S_1
+  = g(f(f(b)),a)         # Step S_2
+  = g(f(f(f(b))),a)      # Step S_3 
+
+In this case, your output should indicate that S_1 is underwritten by E2, S_2 by E1, 
+and S_3 by E1 as well: 
+
+s = g(a,f(b))                 # Step S_0
+  = g(f(b),a)         by E2   # Step S_1
+  = g(f(f(b)),a)      by E1   # Step S_2
+  = g(f(f(f(b))),a)   by E1   # Step S_3 
+
+More precisely, your output should be the following JSON dictionary:
+
+{"explanation": <entirely up to you>,
+ "stepJustifications": [{"step": 1, "supportingEquations": ["E2"]},
+                        {"step": 2, "supportingEquations": ["E1"]},
+                        {"step": 3, "supportingEquations": ["E1"]}]}
+
+This means that the term of each step S_i for i > 0 can be derived from the term of the previous 
+step on the basis of the equations in the "supportingEquations" list, using simple equational reasoning.
+In particular: 
+
+Step S_1: By E2, we have g(X,Y) = g(Y,X) for all X, Y. Hence, the previous term, term(S_0) = g(a,f(b)), 
+can be rewritten as term(S_1) = g(f(b),a) by switching the order of the two arguments. 
+
+Step S_2: By E1, we have f(X) = f(f(X)) for all X, and hence f(b) = f(f(b)). Thus, term(S_1) = g(f(b),a) 
+can be rewritten into g(f(f(b)),a), which is precisely term(S_2). 
+
+Step S_3: Again by E1, we have f(X) = f(f(X)) for all X, and this f(f(b)) = f(f(f(b))). Accordingly, 
+term(S_2) = g(f(f(b)),a) can be rewritten into g(f(f(f(b))),a), which is term(S_3). This step concludes 
+the proof successfully. 
+
+The following signature is used for function symbols: 
+
+Constant symbols            (arity 0): a, b, c, d, e         
+Unary function symbols      (arity 1): f, f1, f2, f3, f4, f5
+Binary function symbols     (arity 2): g, g1, g2, g3, g4, g5
+Ternary function symbols    (arity 3): h, h1, h2, h3, h4, h5
+Quaternary function symbols (arity 4): r, r1, r2, r3, r4, r5 
+
+Note that constant symbols do not necessarily denote distinct elements. (For example, the given 
+equational axioms might imply that a = d.) 
+
+Variable names start with in upper-case letters: X, Y, V123, etc. 
+
+Terms are essentially tree structures. Constant symbols and variables can be viewed as leaves, whereas 
+a complex term like g(s,t) is a tree of height greater than 1, with the function symbol g at the root 
+and the immediate subterms s and t as its subtrees. The notion of a subterm then corresponds to the notion 
+of a subtree. For instance, the term t = h(a,f(b),g(c,d)) has the proper subterms a, f(b), b, g(c,d), c, and d. 
+Every term is a subterm of itself, though not a proper subterm. Using Dewey-style positional notation to 
+navigate trees, we may say that the root of the term t above, namely the symbol h, occurs at position []. 
+At position [1] we find the constant symbol a. At position [2] we find the subterm f(b), and thus at 
+position [2, 1] we find the constant symbol b. At position [3] we have g(c,d) and thus at positions [3,1] 
+and [3,2] we have the constants c and d respectively. We can also associate these positions with the entire 
+subterms rooted there, writing subterm(t,p) to denote the subterm of t found at position p:
+
+subterm(t,[]) = h(a,f(b),g(c,d))
+subterm(t,[1]) = a
+subterm(t,[2]) = f(b)
+subterm(t,[2,1]) = b 
+subterm(t,[3]) = g(c,d)
+subterm(t,[3,1]) = c
+subterm(t,[3,2]) = d 
+
+Note that subterm is a partial function, meaning that subterm(t,p) is undefined if p is not a 
+valid position in the tree representation of t. 
+
+We say that two positions are disjoint iff neither is a prefix of the other. 
+
+A substitution theta is a finite function from variables to terms, e.g., theta = {V12 = a, V354 = f(b)}. 
+To *apply* such a substitution theta to a term t is simply to replace every variable v in t that occurs 
+in the domain of theta with the corresponding term, theta(v). For instance, applying the above substitution 
+to the term s = h(a,V12, g(V12,V354)) produces the term theta(s) = h(a,a,g(a,f(b))). We say that 
+a term t *matches* a term s (or is "an instance" of s) iff there is a substitution theta such that 
+theta(s) = t. For example, g(X,f(b)) matches g(X,Y) under the substitution {Y = f(b)}. 
+
+If e is an equation (s1 = s2), we write LHS(e) and RHS(e) for s1 and s2, respectively. And we say that a term s 
+*reduces* or *rewrites* to a term t via e, written as s -->_e t, iff there is a position p such that subterm(s,p) 
+matches LHS(e) under some substitution theta and t is identical to s except that subterm(t,p) = theta(RHS(e)). 
+We refer to subterm(s,p) as a *redex* of s under e, or as an "e-redex", and we refer to subterm(t,p) as the 
+corresponding *contractum*. Thus, t is obtained from s by replacing the e-redex at position p by the corresponding 
+contractum. 
+
+If E = {e_1,...,e_k} is a set of k > 0 equations, we write s ==>_E t iff s contains k distinct redexes,
+one for each e_i in E, in k *disjoint* positions; and t is obtained from s by replacing each of these 
+k redexes by the corresponding contractum. Thus, if s ==>_E t then we have 
+s -->_{e_1} s_1 -->_{e_2} s_2 ... -->_{e_k} s_k = t for k-1 intermediate terms s_i. However, because
+the k redexes occur in disjoint positions of s, we can imagine all of these reductions occurring concurrently
+in one fell swoop. Note that, by definition, if s ==>_E t then E is minimal in the sense that it has no 
+redundant equations; all k equations in E are used to reduce k redexes in s. 
+
+We can now specify exactly what it means to say that a term t can be derived from a term s 
+by "simple equational reasoning". It means that there is a subset E of EQN, having exactly k > 0 equations, 
+such that s ==>_E t. Thus, the "supportingEquations" you list for a given step of the proof must comprise a set
+E such that s ==>_E t, where t is the step's term and s is the previous step's term. 
+
+Below are a few examples of input proofs and the proper outputs for them. Note that on step 5 of the first
+example, the previous step's term, g(g1(g(f3(a),f2(e)),f4(e)),g2(a,c)), has two redexes for the two given equations,
+E5 and E6, in disjoint positions. The E5-redex occurs in position [1,1], while the E6-redex occurs in [1,2]. 
+The final term is obtained by replacing these two redexes with the corresponding contractums, namely g4(f1(f5(f3(a))),d)
+and e, respectively. 
+
+# BEGIN_EXAMPLES
+
+** Example 1: 
+
+-- Input: 
+
+- Equations:
+
+E1: h(c,V1170,c) = h(V1170,a,f4(f1(c)))
+E2: h(V1173,V1174,V1173) = g2(V1173,V1174)
+E3: h(a,V1181,f4(f1(c))) = g1(f2(f4(V1181)),f4(e))
+E4: f2(f4(V1184)) = g(f3(V1184),f2(e))
+E5: g(V1187,f2(e)) = g4(f1(f5(V1187)),d)
+E6: f4(V1188) = V1188
+
+p- Proof: 
+
+s = g(h(c,a,c),h(a,c,a))                        # step 0
+    g(h(a,a,f4(f1(c))),h(a,c,a))                # step 1
+    g(h(a,a,f4(f1(c))),g2(a,c))                 # step 2
+    g(g1(f2(f4(a)),f4(e)),g2(a,c))              # step 3
+    g(g1(g(f3(a),f2(e)),f4(e)),g2(a,c))         # step 4
+    g(g1(g4(f1(f5(f3(a))),d),e),g2(a,c))        # step 5
+
+-- Output: 
+
+{"explanation": <up to you>,
+ "stepJustifications":  [{"step": 1, "supportingEquations": ["E1"]},
+                         {"step": 2, "supportingEquations": ["E2"]},
+                         {"step": 3, "supportingEquations": ["E3"]},
+                         {"step": 4, "supportingEquations": ["E4"]},
+                         {"step": 5, "supportingEquations": ["E5", "E6"]}]}
+
+** Example 2:
+
+-- Input: 
+
+- Equations:
+
+E1:  h(V1130,V1131,V1132) = h4(V1130,f(V1132),f2(V1131))
+E2:  h(c,c,V1149) = g3(V1149,c)
+E3:  g(V1152,V1153) = f2(V1152)
+E4:  h4(e,f(V1154),f2(a)) = g3(f2(f1(V1154)),e)
+E5:  r(d,c,V1162,V1163) = g(g3(V1163,V1162),f(f4(e)))
+
+- Proof:
+
+s = r(r(d,c,d,b),h(c,c,c),g(d,c),h(e,a,c))                      # step 0
+    r(r(d,c,d,b),h(c,c,c),g(d,c),h4(e,f(c),f2(a)))              # step 1
+    r(r(d,c,d,b),g3(c,c),g(d,c),h4(e,f(c),f2(a)))               # step 2
+    r(r(d,c,d,b),g3(c,c),f2(d),g3(f2(f1(c)),e))                 # step 3
+    r(g(g3(b,d),f(f4(e))),g3(c,c),f2(d),g3(f2(f1(c)),e))        # step 4
+
+-- Output: 
+
+{"explanation": <up to you>,
+"stepJustifications": [{"step": 1, "supportingEquations": ["E1"]},
+                       {"step": 2, "supportingEquations": ["E2"]},
+                       {"step": 3, "supportingEquations": ["E3", "E4"]},
+                       {"step": 4, "supportingEquations": ["E5"]}]}
+
+** Example 3:
+
+-- Input:
+
+- Equations:
+
+E1:  g(V1092,V1093) = g3(f(f(V1093)),V1092)
+E2:  r(V1094,V1094,e,V1094) = g2(f2(f3(V1094)),d)
+E3:  f2(V1103) = f1(V1103)
+E4:  g3(V1107,d) = f2(g(f2(V1107),d))
+E5:  f(V1089) = f4(V1089)
+
+- Proof:
+
+s = h(f(r(b,b,e,b)),h(e,c,e),g(d,e))                            # step 0
+    h(f4(r(b,b,e,b)),h(e,c,e),g(d,e))                           # step 1
+    h(f4(g2(f2(f3(b)),d)),h(e,c,e),g3(f(f(e)),d))               # step 2
+    h(f4(g2(f1(f3(b)),d)),h(e,c,e),g3(f(f(e)),d))               # step 3
+    h(f4(g2(f1(f3(b)),d)),h(e,c,e),f2(g(f2(f(f(e))),d)))        # step 4
+
+-- Output: 
+
+{"explanation": <up to you>,
+"stepJustifications": [{"step": 1, "supportingEquations": ["E5"]},
+                       {"step": 2, "supportingEquations": ["E1", "E2"]},
+                       {"step": 3, "supportingEquations": ["E3"]},
+                       {"step": 4, "supportingEquations": ["E4"]}]}
+
+#END_EXAMPLES
+
+To sum up, your output must be a dictionary with two keys, "explanation" and "stepJustifications", and the latter
+should be list of JSON dictionaries, one for each positive (non-zero) step of the given proof, with each such step
+dictionary containing exactly two keys, the "step" number and a list of "supportingEquations" whose members form 
+a set E such that s ==>_E t, where t is the step's term and s is the previous step's term. The value of "supportingEquations"
+should be the empty list iff no such E exists. 
+
+Do not output anything other than that dictionary with "explanation" and "stepJustifications" - so no text 
+and no descriptions or summaries, either before or after that dictionary. Remember, the list that you provide as the 
+value of "stepJustifications" must contain a dictionary for *every* step of the proof other than the very first step. 
+So, if, for example, a proof has 12 steps total, 0 through 11, your output list must contain exactly 11 dictionaries: 
+one for step 1, one for step 2, ..., and one for step 11. Do not omit any steps. 
+
+Now here is your input proof: 

@@ -1,0 +1,543 @@
+You will be given as input a formal proof for a propositional-logic problem where certain parts
+of the proof have been removed, leaving gaps of various sizes in their places. Your objective is 
+to fill those gaps with appropriate subproofs. 
+
+The problem that the proof solves consists of a number of formulas p_1, ..., p_n that are taken 
+as premises (where n >= 0) and a goal p, which is a single target formula representing the 
+desired conclusion. A formula p is either an atom like A, B, C, D, E, ..., as well as the 
+constants true and false, or else: a negation, of the form (~ p); a conjunction, of the form 
+(p1 & p2); a disjunction, of the form (p1 | p2); a conditional (p1 ==> p2); or a biconditional 
+(p1 <==> p2). We say that two formulas are "complementary" (or "complements", or that they 
+"complement" each other) when one is the syntactic negation of the other. This is a symmetric 
+relation: p complements q iff q complements p. 
+
+Precedence and associativity are as follows: Negation binds the tightest, followed 
+by conjunction, disjunction, conditionals and biconditionals. All binary logical constructors 
+associate to the right. Thus, for instance, (~A & B ==> C | D) should be understood as 
+(((~ A) & B) ==> (C | D)), and these two formulas should be considered identical, and the same 
+as (~A & B ==> (C | D)), or ((~A & B) ==> C | D), or ((~A) & B ==> (C | D)), and so on; 
+all of these are identical, given the precedence and associativity conventions just specified. 
+
+If a formula is complex (not atomic), then it must be enclosed within parentheses. Thus,
+for example, writing ~A or writing B ==> C is not valid syntax; these formulas should instead 
+be written as (~ A) and (B ==> C), respectively. However, within the outer pair of parentheses,  
+additional parentheses may be (optionally) skipped according to the specified precedence 
+and associativity conventions, e.g., it's fine to write (~A & ~B ==> ~B & ~A) instead of 
+(((~ A) & (~ B)) ==> ((~ B) & (~ A))). 
+
+The goal p is definitely derivable from the premises p_1, ..., p_n, and the gaps can definitely
+be filled in some way or another, so as to yield a fully detailed proof that derives p from the
+premises. 
+
+Think about the problem carefully in a step-by-step way and only write down your gap
+assignments at the end. Your answer should be in the following form:
+
+GAP-1:
+<the right proof for GAP-1>
+GAP-2:
+<the right proof for GAP-2>
+...
+
+Essentially, after replacing every gap with the specified subproof, the fully detailed
+proof that results must correctly derive the goal from the premises. 
+
+The input proof (and every subproof you will write for a gap) is written in NDL, short for 
+"Natural Deduction Language". In particular, an NDL proof is either an application of single 
+inference rule to a number of formulas; or a composite proof, built by stringing together a number 
+of other proofs; or a conditional (hypothetical) proof. Applications of inference rules are 
+primitive proofs with no internal structure, while composite and hypothetical proofs are compound, 
+having recursive structure. More specifically: 
+
+1. A primitive proof is a single-line application of an inference rule R to a number of formulas 
+p_1,...,p_n,  each of which is either an asserted premise, or a currently active assumption, 
+or else was derived by a previous subproof. Such a single-step proof is of the form 
+"R on p_1,...,p_n", where R is the name of the inference rule and p_1, ..., p_n are its arguments; 
+or, alternatively, "p BY R on p_1,...,p_n", where p is the conclusion obtained by the application 
+of R to p_1,...,p_n. For instance, an application of mp (modus ponens) might be written as either: 
+
+mp on (A ==> C), A
+
+or as:
+
+C BY mp on (A ==> C), A 
+
+The use of the BY keyword emphasizes that the conclusion of the step is C, which is obtained 
+BY applying the rule mp (modus ponens) to two arguments: the conditional (A ==> C) and the atom A. 
+
+In addition, a rule application (like other subproofs in NDL) can optionally be given an arbitrary 
+name (identifier) I, so its full syntax takes one of 4 forms: either 
+
+* R on p_1,...,p_n (unnamed version, no BY); or 
+
+* I := R on p_1,...,p_n (named version, no BY); or 
+
+* p BY R on p_1,...,p_n (unnamed version, with BY); or finally:
+
+* I := p BY R on p_1,...,p_n (named  version, with BY).
+
+With naming, subsequent steps in the proof can use the name I to refer to the formula 
+that is produced by this rule application (but only inside the same block where it was 
+introduced; see the information below concerning scope and proof blocks). 
+
+When "p BY ..." is used, the step ... to the right of BY cannot produce an arbitrary 
+conclusion q -- it *must* specifically produce p. 
+
+2. Multiple proofs D_1, ..., D_n, D_{n+1} can be combined into a single *proof block* 
+by enclosing them within curly braces and separating them with semicolons:
+
+{
+  D_1;
+  ...
+  D_n;
+  D_{n+1} 
+} 
+
+Note the indentation (by two blanks). Also note that there is no semicolon after the last element 
+(D_{n+1}), although one could optionally appear there. In other words, semicolons are mandatory 
+only in between consecutive steps, but may or may not appear after the trailing step (i.e., 
+immediately before a closing brace, "}"). 
+
+Composition is how lemma formation works in NDL: The conclusion of each D_i becomes logically 
+available to every subsequent D_j for j > i, i.e., every such D_j can use the conclusion of D_i 
+as if it were a premise. 
+
+Consider, for instance, the two-step composition
+{ 
+  (~ B) by mp on (A ==> ~ B), A;
+  (C & ~ B) BY both on C, (~ B)
+}
+
+Here, (~ B) is derived by the fist step, the application of mp, and hence it can be freely 
+used as an argument to the subsequent application of both. 
+
+Note the following important point: The conclusion produced by the entire composition 
+{D_1; ...; D_n; D_{n+1}} is the conclusion of the very last element of the composition, 
+i.e., the conclusion of the proof D_{n+1}. In the above example, the conclusion produced 
+by the two-element composition 
+
+{ 
+  (~ B) by mp on (A ==> ~ B), A;
+  (C & ~ B) BY both on C, (~ B)
+}
+
+is the conclusion produced by the second subproof proof, namely (C & (~ B)). 
+
+Any component subproof D_j inside a proof block D of the form {D_1; D_2; ...; D_n; D_{n+1}}
+can be given a name, by writing D_j as "I_j := D_j". This is so even if D_j is not a primitive
+proof (i.e., a rule application). But note that such a name binding will only be visible to 
+the subsequent subproofs D_{j+1}, ..., D_n, D_{n+1} inside the block D. I_j will no longer 
+denote the conclusion of the subproof D_j once control moves past the proof block D. 
+
+Note also that an intermediate subproof D_j with j <= n may be a simple abbreviation rather 
+than an actual proof, i.e., essentially D_j can be a definition of the form "I := p". 
+Such a step simply serves to give the name I to the formula p during the subsequent
+subproofs D_{j+1}, ..., D_n, D_{n+1} inside D. Note that j <= n implies that j =/= n+1,
+meaning that D_j cannot be the trailing (very last) component D_{n+1}. Such a purely
+definitional step can only appear before the end of a composition. 
+
+3. Below is the list of inference rules that can be used with primitive rule applications in NDL. 
+Each can only be applied to a specific number of formulas, and oftentimes those formulas need to 
+have a specific syntactic form, otherwise the application results in an error. 
+
+  Rule 1: Name: claim (reiteration)  
+          Description: Applied to a formula p that holds, it returns p again as the conclusion. 
+
+  Rule 2: Name: left-and (conjunction elimination)
+          Description: Applied to a conjunction (p & q) that holds, it detaches the left component p. 
+
+  Rule 3: Name: right-and (conjunction elimination) 
+          Description: Applied to a conjunction (p & q) that holds, it detaches the right component q.
+
+  Rule 4: Name: both (conjunction introduction)
+          Description: Applied to two formulas p and q that hold, it produces the conjunction (p & q). 
+
+  Rule 5: Name: mp (modus ponens, conditional elimination) 
+          Description: Applied to two formulas (p ==> q) and p that hold, it produces the conclusion q. 
+
+  Rule 6: Name: left-either (disjunction introduction)
+          Description: Applied to two formulas p and q, the left of which (p) holds, it produces the 
+	  disjunction (p | q). The right formula can be any formula whatsoever, and might or might not hold. 	  
+
+  Rule 7: Name: right-either (disjunction introduction)
+          Description: Applied to two formulas p and q, the right of which (q) holds, it produces the 
+	  disjunction (p | q). The left formula can be any formula whatsoever, and might or might not hold. 	  
+
+  Rule 8: Name: cases (disjunction elimination)
+          Description: Applied to three formulas of the form (p | q), (p ==> r) and (q ==> r) that hold, 
+	  it produces the conclusion r. 
+
+  Rule 9: Name: absurd (false introduction):
+          Description: Applied to two complementary formulas of the form p and (~ p) (or (~ p) and p), 
+	  both of which hold, it produces the conclusion false. 
+          
+  Rule 10: Name: dn (negation elimination, aka "double negation"):
+           Description: Applied to a formula of the form (~ ~ p) that holds, it produces the conclusion p. 
+
+  Rule 11: Name: left-iff (biconditional elimination)
+           Description: Applied to a formula of the form (p <==> q) that holds, it produces the 
+	   conclusion (p ==> q). 
+
+  Rule 12: Name: right-iff (biconditional elimination)
+           Description: Applied to a formula of the form (p <==> q) that holds, it produces 
+	   the conclusion (q ==> p). 
+
+  Rule 13: Name: equiv (biconditional introduction) 
+           Description: Applied to two formulas of the form (p ==> q) and (q ==> p) that hold, it produces 
+	   the conclusion (p <==> q). 
+
+  Rule 14: Name: ex-middle (excluded middle)
+           Description: Applied to any formula p, regardless of whether p holds, it produces 
+	   the conclusion (p | ~p). 
+
+  Rule 15: Name: dm (De Morgan)
+           Description: dm can be applied to any formula of the form (~ (p & q)) that holds, producing 
+	   the conclusion (~p | ~q). It can also be applied to a formula of the form (~ (p | q)) 
+	   that hods, producing the conclusion (~p & ~q).
+
+  Rule 16: Name: dsyl (disjunctive syllogism):
+           Description: dsyl is applied to two arguments of the form (p | q) and r, where r complements 
+	   either p or q (meaning that either r and p are complements or else r and q are complements). 
+	   Both of these arguments must hold. If r complements p, the result is q; and if r complements q,
+	   the result is p. For instance, if (A | B) and (~ B) hold, then the application 
+	   "dsyl on (A | B), (~ B)" will produce the conclusion A. Likewise, if (A | B) and (~ A) both 
+	   hold, then applying dsyl to (~A | C), A will produce C. 
+
+  Rule 17: Name: neg-cond (negated conditional) 
+           Description: If a negated conditional of the form (~ (p ==> q)) holds, then applying neg-cond 
+	   to it will produce the conjunction (p & (~ q)). This reflects the definition of a conditional 
+	   (p ==> q), according to which (p ==> q) is false if and only if p holds and q doesn't. 
+           Conversely, if (p & ~ q) holds, then applying neg-cond to it will derive (~ (p ==> q)). 
+
+  Rule 18: Name: neg-bicond (negated biconditional): 
+           Description: If a negated biconditional of the form (~ (p <==> q)) holds, then applying 
+	   neg-bicond to it will produce the disjunction ((p & (~ q)) | ((~ p) & q)). This reflects 
+	   the definition of a biconditional (p <==> q), which says that (p <==> q) holds if and only if 
+	   p and q both hold or else neither one does. Thus, if (p <==> q) fails, this means that either 
+	   p holds and q doesn't, or q does and p doesn't. Conversely, if the disjunction 
+	   ((p & (~ q)) | ((~ p) & q)) holds, applying neg-bicond to it will derive (~ (p <==> q)). 
+
+  Rule 19: Name: from-false (introduction of any formula from a contradiction):
+           Description: This is a unary inference rule that takes an arbitrary formula p as input. 
+	   The result is p, *provided* that the constant false currently holds (this is a very important 
+	   precondition). It is an error is false doesn't hold.
+
+  Rule 20: Name: mt (modus tollens)
+           Description: Suppose that two formulas of the form (p ==> q) and r hold, where r complements q. 
+	   Then applying mt to these two formulas will produce the conclusion (~ p). 
+
+  Rule 21: Name: cond-def (conditional definition)
+           Description: Suppose that a conditional (p ==> q) holds. Then applying cond-def to it will 
+	   produce the conclusion (~ p | q). Conversely, if (~ p | q) holds, then applying cond-def to 
+	   it will produce the conclusion (p ==> q). 
+
+  Rule 22: Name: bicond-def' (biconditional definition)
+           Description: Suppose that a biconditional (p <==> q) holds. Then applying bicond-def' to it 
+	   will produce the disjunction ((p & q) |(~ p & ~ q)), which states that either both p and q hold 
+	   or neither does. That is an alternative definition of biconditionals. Conversely, 
+	   if a formula of the form ((p & q) | ((~ p) & (~ q))) holds, then applying bicond-def' to it
+           will produce the biconditional (p <==> q). 
+
+  Rule 23: Name: from-complements (infer anything from two complementary formulas)
+           Description: Suppose that a formula q holds and that a complementary formula r also holds
+	   (so that q and r complement each other). Then applying the ternary rule from-complements 
+	   to any formulas p, q, and r will produce the conclusion p. So the first argument is the
+	   conclusion we want to derive and the last two arguments are the two complementary formulas
+	   that hold. This is valid because anything follows from an inconsistency. Note that 
+	   from-complements is not strictly necessary, since the same result can be obtained by first 
+	   applying absurd to q and (~ q) to derive false, and then applying from-false to p would
+           successfully derive p. But from-complements is more convenient because it captures both 
+	   steps in a single rule application. 
+
+  Rule 24: Name: by-contradiction (reasoning by contradiction).
+           Description: This binary rule is applied to formulas of the form p and (q ==> false), 
+	   where q complements p. Assuming that the second argument (q ==> false) holds, the first 
+	   argument p is produced as the conclusion. This is how reasoning by contradiction is performed
+ 	   in this language: If one wants to derive p by way of contradiction, they first prove 
+	   a conditional of the form (q ==> false), where q and p are complementary, then apply 
+	   the rule by-contradiction to p and (q ==> false). NDL provides another way to perform 
+	   reasoning by contradiction, using the suppose-absurd construct described below. 
+	   But combinations of assume followed by applications of by-contradiction are the most 
+	   common method. We stress that the first argument to this rule, p, does NOT need to hold 
+	   at the time when this rule is applied; only the second argument, the conditional (q ==> false), 
+	   needs to hold. The first argument p is essentially just an annotation: it simply indicates 
+	   the desired conclusion of the entire application of by-contradiction; if the rule application 
+	   works, it will return the first argument p as the result. 
+
+By the way, when we say that a formula "holds" in NDL, we mean that it is either a starting premise 
+that was initially asserted; or it is an active hypothesis postulated by a currently open conditional 
+('assume') subproof; or else it was derived at a previous point in the proof (by a previous element 
+of a proof composition) and remains operative in the current scope. It's always an error if an 
+inference rule expects an argument to hold and it doesn't. 
+
+4. Conditional (or hypothetical) proofs in NDL are compound proofs of the form 
+
+assume p {
+  ...  
+}
+
+where p is the formula being assumed (the hypothesis) and { ... } is a subproof comprising 
+the *body* of the conditional proof, which represents the logical *scope* of the hypothesis p. 
+Accordingly, the hypothesis p remains operative --as a working assumption -- throughout the 
+body { ... } and can be freely used as an argument to any inference rule inside that body, 
+as if it were a starting premise. 
+
+If the body produces a conclusion q, then the entire 'assume p { ... }' proof discharges 
+the assumption p and ultimately produces the conditional conclusion (p ==> q). 
+The hypothesis p is no longer active after that point. 
+  
+Thus, for instance: 
+
+assume A { ...
+  ... 
+  # Here we are inside the scope of A 
+  assume B { 
+    ... 
+    # Here we are inside the scope of both A and B
+  }; 
+  ... 
+  # Here we are again only inside the scope of A 
+}; 
+... # And here we are outside the scope of both A and B 
+
+Optionally, a name I can be given to the hypothesis of a conditional proof, e.g., one may write 
+
+assume I := p { ... }
+ 
+instead of simply 
+
+assume p { ... }
+
+In the former version, the name I can be used to refer to the formula p anywhere inside the body
+of the conditional proof, { ... }. But this binding of I to p does not remain active outside of
+that body. 
+
+5. Reductio ad absurdum proofs (proofs by contradiction) are similar to conditional proofs. 
+They are of the form: 
+
+suppose-absurd p {
+  ...
+}
+
+where p is the formula we are trying to disprove. In other words, we are trying to prove the negation of p, (~ p). 
+If, with the aid of the assumption p, the body ... manages to produce the conclusion false, then the entire 
+'suppose-absurd p { ... }' proof derives the conclusion (~ p). A suppose-absurd proof can be viewed as 
+a slightly shorter version of a proof that uses assume followed by an application of by-contradiction. 
+
+6. In NDL, a pound sign ("#") is used to write comments that extend to the end of the line. 
+Your input NDL proof might or might not have comments.
+
+7. Starting premises are written as follows:
+
+assert <premise-name> := p 
+
+where <premise-name> is an identifier (just an alphanumeric string starting with an alphabetic letter,
+typically a name like 'premise-4' or 'premise-12') and p is any formula. Such a directive serves as 
+a global declaration to the effect that p is a premise that a proof can take for granted, and also 
+serves to establish the identifier <premise-name> as a name for that premise, so that <premise-name> 
+can then be used inside a proof to refer to the premise p. But note that p can also appear inline 
+inside the proof (e.g., as a direct argument to an inference rule), so the use of <premise-name> 
+as a shorthand for p is optional, not mandatory. 
+
+Here are some examples of NDL proofs with gaps and proper corresponding answers: 
+
+# BEGIN_EXAMPLES
+
+** Example 1: 
+
+-- Input: 
+
+assert premise-1 := ((A | B) ==> (~A | B))
+assert premise-2 := A 
+
+Derive: B
+
+Proof with gaps: 
+{
+  assume (~ B) {
+    GAP-1
+  };
+  B BY by-contradiction on B, ((~ B) ==> false)
+}
+
+-- Answer: 
+
+GAP-1: 
+(A | B) BY left-either on A, B;
+(~A | B) BY mp on premise-1, (A | B);
+(~A) BY dsyl on (~A | B), (~ B);
+false BY absurd on A, (~A)
+
+** Example 2:
+
+-- Input: 
+
+assert premise-1 := ((A ==> B) & (B ==> C))
+assert premise-2 := (C ==> A)
+assert premise-3 := (C | A)
+
+Derive: (C & A)
+
+Proof with gaps: 
+
+{
+  case1 := assume C {
+    GAP-1;
+    both on C, A  
+  };
+  case2 := assume A {
+    GAP-2;
+  };
+  GAP-6
+}
+
+-- Answer: 
+
+GAP-1:
+A BY mp on premise-2, C;
+GAP-2: 
+A-implies-B := left-and on premise-1;
+B := mp on A-implies-B, A;
+B-implies-C := right-and on premise-1;
+C := mp on B-implies-C, B;
+both on C, A  
+GAP-6: 
+cases on premise-3, case1, case2
+
+** Example 3:
+
+-- Input: 
+
+assert premise-1 := ((A ==> (C & ~B)) | ((~ ~C) & (C & ~A)))
+assert premise-2 := (C ==> B)
+assert premise-3 := (~A ==> B)
+
+Derive: B 
+
+Proof with gaps: 
+
+{
+  GAP-1
+}
+
+-- Answer: 
+
+GAP-1:
+assume h2 := (A ==> (C & ~B)) {
+  assume A {
+    (C & ~B) BY mp on h2, A;
+    (~ B) BY right-and on (C & ~B);
+    C BY left-and on (C & ~B);
+    B BY mp on (C ==> B), C;
+    false BY absurd on (~ B), B
+   };
+  (~ A) BY by-contradiction on (~ A), (A ==> false)
+ };
+assume h3 := ((~ ~C) & (C & ~A)) {
+  (C & ~A) BY right-and on h3;
+  (~ A) BY right-and on (C & ~A)
+};
+(~ A) BY cases on premise-1, ((A ==> (C & ~B)) ==> ~A), (((~ ~C) & (C & ~A)) ==> ~A);
+B BY mp on (~A ==> B), (~ A)
+
+** Example 4:
+
+-- Input: 
+
+assert premise-1 := (B | (C & A))
+assert premise-2 := (B ==> ~C)
+assert premise-3 := ((B ==> (B & A)) | (A & (A | C)))
+assert premise-4 := (C ==> B)
+
+Derive: (A & ~C)
+
+Proof with gaps: 
+
+{
+  assume B {
+    GAP-1;
+    assume h3 := (A & (A | C)) {
+      A BY left-and on h3
+     };
+    GAP-2
+   };
+  assume (C & A) {
+    C BY left-and on (C & A);
+    B BY mp on (C ==> B), C;
+    A BY mp on (B ==> A), B
+   };
+  A BY cases on premise-1, (B ==> A), ((C & A) ==> A);
+  assume B {
+    B BY claim on B
+   };
+  assume (C & A) {
+    C BY left-and on (C & A);
+    B BY mp on (C ==> B), C
+   };
+  B BY cases on premise-1, (B ==> B), ((C & A) ==> B);
+  (~ C) BY mp on (B ==> ~C), B;
+  (A & ~C) BY both on A, (~ C)
+}
+
+-- Answer: 
+
+GAP-1:
+assume h2 := (B ==> (B & A)) {
+  assume B {
+    (B & A) BY mp on h2, B;
+    A BY right-and on (B & A)
+   };
+  assume (C & A) {
+    A BY mp on (B ==> A), B
+   };
+  A BY cases on premise-1, (B ==> A), ((C & A) ==> A)
+  };
+GAP-2:
+A BY cases on premise-3, ((B ==> (B & A)) ==> A), ((A & (A | C)) ==> A)
+
+** Example 5: 
+
+-- Input: 
+
+assert premise-1 := ((~A & B) | (A | B))
+assert premise-2 := (B ==> (A & B))
+assert premise-3 := (A ==> B)
+
+Derive: (A & B)
+
+Proof with gaps: 
+
+{
+  GAP-1;
+  assume (~A & B) {
+    GAP-2;
+   };
+  assume A {
+    GAP-4
+   };
+  assume B {
+    GAP-5;
+   };
+  GAP-7;
+}
+
+-- Answer: 
+
+GAP-1:
+p1 := (~B | (A & B)) BY cond-def on premise-2;
+GAP-2:
+B BY right-and on (~A & B);
+(A & B) BY dsyl on p1, B;
+A BY left-and on (A & B)
+GAP-4:
+A BY claim on A
+GAP-5:
+(A & B) BY dsyl on p1, B;
+A BY left-and on (A & B)
+GAP-7:
+A BY cases on premise-1, ((~A & B) ==> A), (A ==> A), (B ==> A);
+B BY mp on (A ==> B), A;
+(A & B) BY both on A, B 
+
+# END_EXAMPLES
+
+Now here is the input problem and the proof whose gaps you need to fill: 

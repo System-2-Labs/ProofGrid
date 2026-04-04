@@ -1,0 +1,389 @@
+Your objective is to check whether an equational proof is correct, and to justify your answer. The proof is given as 
+a chain of steps that rewrite a starting term to an ending term. Each step is justified by appeal to certain equations
+that are taken for granted. In particular, your input will consist of the following:
+
+(1) a set EQN comprising m > 0 equations E_1,...,E_m, representing the available equational axioms; and 
+
+(2) a sequence of n > 0 steps S_0, S_1, ..., S_n, where each step S_i consists of a term t_i, which we write as term(S_i), 
+and a set of equations drawn from EQN, which we write as EQN(S_i). We have EQN(S_0) = {}. The term of the first step S_0 
+is the starting term, the term of the last step S_n is the ending term, and the first step (S_0) does not have any equations. 
+For every step S_i with i > 0, the equations EQN(S_i) are supposed to license the passage from term(S_{i-1}) to term(S_i). 
+That is, the equations cited by step S_i, i > 0, prove that the term of that step can be derived from the term of the 
+preceding step by simple equational reasoning (exactly what constitutes "simple equational reasoning" will be specified
+in detail shortly). Thus, the proof can be schematically understood as follows:
+
+    term(S_0)
+  = term(S_1)  by EQN(S_1)
+  = term(S_2)  by EQN(S_2)
+  ... 
+  = term(S_n)  by EQN(S_n)
+
+Your output will be a JSON dictionary with two keys: 
+
+{"correct": <true or false, according to whether or not the input proof is correct>,
+ "explanation":   <If the proof is correct, the value of this key should be a list of n dictionaries, one for each 
+                   step S_i with i > 0, showing exactly how that step derives its term from the term of the previous 
+		   step. (The exact format is precisely specified below and illustrated with examples.) If the proof 
+		   is incorrect, the value of this key should be a dictionary pinpointing the first offending step 
+		   in the proof, as well as the details of the error. See below for a precise specification.>}
+
+Here is an example, with g(a,f(b)) as the starting term, g(f(f(f(b))),a) as the ending term, and EQN containing the 
+two equations E1: f(X) = f(f(X)) and E2: g(X,Y) = g(Y,X). Variable names start with upper-case letters, whereas the names
+of function symbols and constants start with lower-case letters. Every equation is understood to be universally quantified
+over all the variables that occur in it. Thus, for example, E2 should be understood as (forall X, Y . g(X,Y) = g(Y,X)). 
+The proof has 4 steps: 
+
+s = g(a,f(b))                 # Step S_0
+  = g(f(b),a)         by E2   # Step S_1
+  = g(f(f(b)),a)      by E1   # Step S_2
+  = g(f(f(f(b))),a)   by E1   # Step S_3 
+
+This proof is correct, because the term of each step S_i for i > 0 can be derived from the previous term on the basis
+of the cited equations. In other words, the identity term(S_{i-1}) = term(S_i) follows logically from the given equations.
+In particular: 
+
+Step S_1: By E2, we have g(X,Y) = g(Y,X) for all X, Y. Hence, the previous term, term(S_0) = g(a,f(b)), 
+can be rewritten as term(S_1) = g(f(b),a) by switching the order of the two arguments. 
+
+Step S_2: By E1, we have f(X) = f(f(X)) for all X, and hence f(b) = f(f(b)). Thus, term(S_1) = g(f(b),a) 
+can be rewritten into g(f(f(b)),a), which is precisely term(S_2). 
+
+Step S_3: Again by E1, we have f(X) = f(f(X)) for all X, and thus f(f(b)) = f(f(f(b))). Accordingly, 
+term(S_2) = g(f(f(b)),a) can be rewritten into g(f(f(f(b))),a), which is term(S_3). This step concludes 
+the proof successfully. 
+
+We use the following alphabet of function symbols: 
+
+Constant symbols            (arity 0): a, b, c, d, e         
+Unary function symbols      (arity 1): f, f1, f2, f3, f4, f5
+Binary function symbols     (arity 2): g, g1, g2, g3, g4, g5
+Ternary function symbols    (arity 3): h, h1, h2, h3, h4, h5
+Quaternary function symbols (arity 4): r, r1, r2, r3, r4, r5 
+
+Note that the constant symbols are not necessarily distinct. A certain set of equations might imply, 
+for example, the identity (a = b). 
+
+Variable names start with upper-case letters: X, Y, V123, etc. 
+
+Terms are essentially tree structures. Constant symbols and variables can be viewed as leaves, whereas 
+a complex term like g(s,t) is a tree of height greater than 1, with the function symbol g at the root 
+and the immediate subterms s and t as its subtrees, from left to right. The notion of a subterm then 
+corresponds to the notion of a subtree. For instance, the term t = h(a,f(b),g(c,d)) has the proper subterms 
+a, f(b), b, g(c,d), c, and d. Every term is a subterm of itself, though not a proper subterm. 
+Using Dewey-style positional notation to navigate trees, we may say that the root of the term t above, 
+namely the symbol h, occurs at position []. At position [1] we find the constant symbol a. At position [2] 
+we find the subterm f(b), and thus at position [2, 1] we find the constant symbol b. At position [3] 
+we have g(c,d) and thus at positions [3,1] and [3,2] we have the constants c and d respectively. 
+We can also associate these positions with the entire subterms rooted there, writing subterm(t,p) 
+to denote the subterm of t at position p:
+
+subterm(t,[]) = h(a,f(b),g(c,d))
+subterm(t,[1]) = a
+subterm(t,[2]) = f(b)
+subterm(t,[2,1]) = b 
+subterm(t,[3]) = g(c,d)
+subterm(t,[3,1]) = c
+subterm(t,[3,2]) = d 
+
+Note that subterm is a partial function, meaning that subterm(t,p) is undefined if p is not a 
+valid position in the tree representation of t. 
+
+Two positions are disjoint iff neither is a prefix of the other. 
+
+A substitution theta is a finite function from variables to terms, e.g., theta = {V12 = a, V354 = f(b)}. 
+To *apply* such a substitution theta to a term t is simply to replace every variable v in t that occurs 
+in the domain of theta with the corresponding term, theta(v). For instance, applying the above substitution 
+to the term s = h(a,V12, g(V12,V354)) produces the term theta(s) = h(a,a,g(a,f(b))). We say that 
+a term t *matches* a term s (or is "an instance" of s) iff there is a substitution theta such that 
+theta(s) = t. For example, g(X,f(b)) matches g(X,Y) under the substitution {Y = f(b)}. 
+
+If e is an equation (s1 = s2), we write LHS(e) and RHS(e) for s1 and s2, respectively. And we say that a term s 
+*reduces* or *rewrites* to a term t via e, written as s -->_e t, iff there is a position p such that subterm(s,p) 
+matches LHS(e) under some substitution theta and t is identical to s except that subterm(t,p) = theta(RHS(e)). 
+We refer to subterm(s,p) as a *redex* of s under e, or as an "e-redex", and we refer to subterm(t,p) as the 
+corresponding *contractum*. Thus, t is obtained from s by replacing the e-redex at position p by the corresponding 
+contractum. 
+
+If E = {e_1,...,e_k} is a set of k > 0 equations, we write s ==>_E t iff s contains k distinct redexes,
+one for each e_i in E, in k *disjoint* positions; and t is obtained from s by replacing each of these 
+k redexes by the corresponding contractum. Thus, if s ==>_E t then we have 
+s -->_{e_1} s_1 -->_{e_2} s_2 ... -->_{e_k} s_k = t for k-1 intermediate terms s_i. However, because
+the k redexes occur in disjoint positions of s, we can imagine all of these reductions occurring concurrently
+in one fell swoop. Note that, by definition, if s ==>_E t then E is minimal in the sense that it has no 
+redundant equations; all k equations in E are used to reduce k redexes in s. 
+
+We can now specify exactly what it means to say that a term t can be derived from a term s 
+on the basis of k > 0 given equations E = {E_1, ..., E_k}: it simply means that s ==>_E t. 
+For instance, consider again the proof example above:
+
+s = g(a,f(b))                 # Step S_0
+  = g(f(b),a)         by E2   # Step S_1
+  = g(f(f(b)),a)      by E1   # Step S_2
+  = g(f(f(f(b))),a)   by E1   # Step S_3 
+
+where E1 is f(X) = f(f(X) and E2 is g(X,Y) = g(Y,X). Looking at step S_1, we see that the entire preceding 
+term, term(S_0), namely g(a,f(b)), is a redex, matching the LHS of E2 under the substitution {X = a, Y = f(b)}. 
+Applying this substitution at the matching position, [], means replacing that subterm with the corresponding 
+instance of the right-hand side of E2, g(Y,X), i.e., with the contractum g(f(b),a). 
+
+Likewise, looking at step S_2, in going from term(S_1) = g(f(b),a) to term(S_2) = g(f(f(b)),a) by virtue of E1, 
+we see that the subterm f(b) of term(S_1), at position [1], matches the LHS of E1 under theta = {X = b}. 
+Replacing that redex with the corresponding instance of the RHS of E1, namely the contractum f(f(b)), 
+produces term(S_2) = g(f(f(b)),a). Repeating this process one more time finally takes us from S_2 to S_3, 
+which concludes the proof. 
+
+Note that in going from a term s to a term t, there may be multiple subterms of s (in disjoint positions) 
+matching the left-hand sides of multiple equations. For instance, we can validly go from s = h(a,g(b,c),f(d)) 
+to t = h(a,g(c,b),f(f(d))) by virtue of E1 and E2 because: the subterm g(b,c) at position [2] is a redex that 
+matches the LHS of E2 under {X = b, Y = c}, while the subterm f(d) at position [3] is another redex that matches 
+the LHS of E1 under X = d. Thus, we can replace the former redex at [2] by the corresponding instance of E2's RHS, 
+namely, the contractum g(c,b), and the latter subterm at [3] by the corresponding instance of E1's RHS, namely 
+the contractum f(f(d)). Doing so yields the term t = h(a,g(c,b),f(f(d))). In the general case of going 
+from s to t, there may be more than 2 redexes of s, matching multiple equations, whose replacements produce t. 
+
+Here are a few examples of both correct and incorrect equational proofs and outputs that should be 
+produced for each: 
+
+# BEGIN_EXAMPLES
+
+** Example 1: 
+-- Input: 
+
+- Equations:
+
+E1: h(c,V1170,c) = h(V1170,a,f4(f1(c)))
+E2: h(V1173,V1174,V1173) = g2(V1173,V1174)
+E3: h(a,V1181,f4(f1(c))) = g1(f2(f4(V1181)),f4(e))
+E4: f2(f4(V1184)) = g(f3(V1184),f2(e))
+E5: g(V1187,f2(e)) = g4(f1(f5(V1187)),d)
+E6: f4(V1188) = V1188
+
+- Proof: 
+
+s = g(h(c,a,c),h(a,c,a))                                 # step 0
+    g(h(a,a,f4(f1(c))),h(a,c,a))          by E1          # step 1
+    g(h(a,a,f4(f1(c))),g2(a,c))           by E2          # step 2
+    g(g1(f2(f4(a)),f4(e)),g2(a,c))        by E3          # step 3
+    g(g1(g(f3(a),f2(e)),f4(e)),g2(a,c))   by E4          # step 4
+    g(g1(g4(f1(f5(f3(a))),d),e),g2(a,c))  by E5, E6      # step 5
+
+-- Output: 
+
+{"correct": true,
+ "explanation": [{"step": 1, "rewrites": [{"equation": "E1", "position": [1],   "redex": "h(c,a,c)", "contractum": "h(a,a,f4(f1(c)))"}]},
+                 {"step": 2, "rewrites": [{"equation": "E2", "position": [2],   "redex": "h(a,c,a)", "contractum": "g2(a,c)"}]},
+                 {"step": 3, "rewrites": [{"equation": "E3", "position": [1],   "redex": "h(a,a,f4(f1(c)))", "contractum": "g1(f2(f4(a)),f4(e))"}]},
+                 {"step": 4, "rewrites": [{"equation": "E4", "position": [1,1], "redex": "f2(f4(a))", "contractum": "g(f3(a),f2(e))"}]},
+                 {"step": 5, "rewrites": [{"equation": "E5", "position": [1,1], "redex": "g(f3(a),f2(e))", "contractum": "g4(f1(f5(f3(a))),d)"},
+                                          {"equation": "E6", "position": [1,2], "redex": "f4(e)", "contractum": "e"}]}]}
+
+** Example 2:
+
+-- Input: 
+
+- Equations:
+
+E1:  h(V1130,V1131,V1132) = h4(V1130,f(V1132),f2(V1131))
+E2:  h(c,c,V1149) = g3(V1149,c)
+E3:  g(V1152,V1153) = f2(V1152)
+E4:  h4(e,f(V1154),f2(a)) = g3(f2(f1(V1154)),e)
+E5:  r(d,c,V1162,V1163) = g(g3(V1163,V1162),f(f4(e)))
+
+- Proof:
+
+s = r(r(d,c,d,b),h(c,c,c),g(d,c),h(e,a,c))                               # step 0
+    r(r(d,c,d,b),h(c,c,c),g(d,c),h4(e,f(c),f2(a)))        by E1          # step 1
+    r(r(d,c,d,b),g3(c,c),g(d,c),h4(e,f(c),f2(a)))         by E2          # step 2
+    r(r(d,c,d,b),g3(c,c),f2(d),g3(f2(f1(c)),e))           by E3, E4      # step 3
+    r(g(g3(b,d),f(f4(e))),g3(c,c),f2(d),g3(f2(f1(c)),e))  by E5          # step 4
+
+-- Output: 
+
+{"correct": true,
+ "explanation": [{"step": 1, "rewrites": [{"equation": "E1", "position": [4], "redex": "h(e,a,c)", "contractum": "h4(e,f(c),f2(a))"}]},
+                 {"step": 2, "rewrites": [{"equation": "E2", "position": [2], "redex": "h(c,c,c)", "contractum": "g3(c,c)"}]}
+                 {"step": 3, "rewrites": [{"equation": "E3", "position": [3], "redex": "g(d,c)", "contractum": "f2(d)"}, 
+                                          {"equation": "E4", "position": [4], "redex": "h4(e,f(c),f2(a))", "contractum": "g3(f2(f1(c)),e)"}]},
+		 {"step": 4, "rewrites": [{"equation": "E5", "position": [1], "redex": "r(d,c,d,b)", "contractum": "g(g3(b,d),f(f4(e)))"}]}]}
+
+** Example 3:
+
+-- Input:
+
+- Equations:
+
+E1:  f(V1089) = f4(V1089)
+E2:  g(V1092,V1093) = g3(f(f(V1093)),V1092)
+E3:  r(V1094,V1094,e,V1094) = g2(f2(f3(V1094)),d)
+E4:  f2(V1103) = f1(V1103)
+E5:  g3(V1107,d) = f2(g(f2(V1107),d))
+
+- Proof:
+
+s = h(f(r(b,b,e,b)),h(e,c,e),g(d,e))                                     # step 0
+    h(f4(r(b,b,e,b)),h(e,c,e),g(d,e))                     by E1          # step 1
+    h(f4(g2(f2(f3(b)),d)),h(e,c,e),g3(f(f(e)),d))         by E2, E3      # step 2
+    h(f4(g2(f1(f3(b)),d)),h(e,c,e),g3(f(f(e)),d))         by E4          # step 3
+    h(f4(g2(f1(f3(b)),d)),h(e,c,e),f2(g(f2(f(f(e))),d)))  by E5          # step 4
+
+-- Output: 
+
+{"correct": true,
+ "explanation": [{"step": 1, "rewrites": [{"equation": "E1", "position": [1], "redex": "f(r(b,b,e,b))", "contractum": "f4(r(b,b,e,b))"}]},
+                 {"step": 2, "rewrites": [{"equation": "E2", "position": [3], "redex": "g(d,e)", "contractum": "g3(f(f(e)),d)"}, 
+                                          {"equation": "E3", "position": [1, 1], "redex": "r(b,b,e,b)", "contractum": "g2(f2(f3(b)),d)"}]},
+                 {"step": 3, "rewrites": [{"equation": "E4", "position": [1, 1, 1], "redex": "f2(f3(b))", "contractum": "f1(f3(b))"}]},
+                 {"step": 4, "rewrites": [{"equation": "E5", "position": [3], "redex": "g3(f(f(e)),d)", "contractum": "f2(g(f2(f(f(e))),d))"}]}]}
+
+
+** Example 4:
+
+-- Input:
+
+- Equations:
+
+E1:  h(V1215,V1215,V1216) = g3(V1216,f1(V1215))
+E2:  h(V1217,V1218,V1219) = h1(f4(V1217),V1218,V1219)
+E3:  f1(V1242) = f2(V1242)
+E4:  h1(V1246,e,b) = g4(V1246,a)
+E5:  f4(V1249) = V1249
+E6:  g(a,V1252) = g2(V1252,f1(b))
+E7:  h(a,V1253,V1254) = g1(g2(V1253,V1254),b)
+
+- Proof:
+
+s = r(h(a,c,e),f(h(e,e,b)),h(a,e,b),g(a,a))                             # step 0
+    r(h(a,c,e),f(g3(b,f1(e))),h1(f4(a),e,b),g(a,a))      by E1, E2      # step 1
+    r(h(a,c,e),f(g3(b,f2(e))),h1(f4(a),e,b),g(a,a))      by E3          # step 2
+    r(h(a,c,e),f(g3(b,f2(e))),g4(f4(d),a),g(a,a))        by E4          # step 3
+    r(h(a,c,e),f(g3(b,f2(e))),g4(a,a),g(a,a))            by E5          # step 4
+    r(g1(g2(c,e),b),f(g3(b,f2(e))),g4(a,a),g2(a,f1(b)))  by E6, E7      # step 5
+
+-- Output: 
+
+{"correct": false,
+ "explanation": {"step": 3, "equation": "E4", "position": [3], "actualContractum": "g4(f4(d),a)", "expectedContractum": "g4(f4(a),a)"}}
+
+** Example 5:
+
+-- Input:
+
+- Equations:
+
+E1:  r(V1193,a,d,b) = h3(V1193,e,d)
+E2:  h3(c,V1196,V1197) = g4(V1197,g3(V1196,a))
+E3:  g3(V1204,a) = f3(g3(V1204,f3(d)))
+E4:  g4(V1207,V1208) = g3(V1208,f4(V1207))
+
+- Proof:
+
+s = f(r(c,a,d,b))                            # step 0
+    f(h3(c,e,d))                  by E1      # step 1
+    f(g4(d,g3(b,a)))              by E2      # step 2
+    f(g4(d,f3(g3(e,f3(d)))))      by E3      # step 3
+    f(g3(f3(g3(e,f3(d))),f4(d)))  by E4      # step 4
+
+
+-- Output: 
+
+{"correct": false,
+ "explanation": {"step": 2, "equation": "E2", "position": [1], "actualContractum": "g4(d,g3(b,a))", "expectedContractum": "g4(d,g3(e,a))"}}
+
+** Example 6:
+
+-- Input:
+
+- Equations:
+
+E1:  h(a,V1110,V1111) = g3(f(V1111),f1(V1110))
+E2:  h(b,c,V1118) = g(f4(f3(V1118)),a)
+E3:  g3(f(c),f1(V1119)) = g(f2(V1119),g1(a,c))
+E4:  f2(V1124) = f1(f1(V1124))
+E5:  f4(f3(V1125)) = f2(g(V1125,f4(c)))
+
+- Proof:
+
+s = r(h(e,e,c),g(c,b),h(b,c,b),h(a,a,c))                                    # step 0
+    r(h(e,e,c),g(c,b),h(b,c,b),g3(f(c),f1(a)))               by E1          # step 1
+    r(h(e,e,c),g(c,b),g(f4(f3(b)),a),g(f2(a),g1(a,c)))       by E2, E3      # step 2
+    r(h(e,e,c),g(c,b),g(f2(g(b,f4(e))),a),g(f2(a),g1(a,c)))  by E4, E5      # step 3
+
+-- Output: 
+
+{"correct": false,
+ "explanation": {"step": 3, "equation": "E5", "position": [3, 1], "actualContractum": "f2(g(b,f4(e)))", "expectedContractum": "f2(g(b,f4(c)))"}}
+
+** Example 7:
+
+-- Input:
+
+- Equations:
+
+E1:  g(V1068,d) = f(f2(f3(V1068)))
+E2:  g(b,V1071) = h(V1071,f4(a),d)
+E3:  g(b,V1072) = f5(V1072)
+E4:  f2(V1073) = f1(V1073)
+E5:  f3(V1080) = V1080
+E6:  f4(V1083) = g2(V1083,f5(b))
+E7:  f(V1086) = f1(V1086)
+
+- Proof:
+
+s = h(g(b,d),g(b,b),g(b,e))                                   # step 0
+    h(f(f2(f3(b))),g(b,b),g(b,e))          by E1              # step 1
+    h(f(f1(f3(b))),f5(b),h(e,f4(a),d))     by E2, E3, E4      # step 2
+    h(f(f1(b)),f5(b),h(e,f4(a),d))         by E5              # step 3
+    h(f(f1(b)),f5(b),h(e,g2(a,f5(b)),d))   by E2              # step 4
+    h(f1(f1(d)),f5(b),h(e,g2(a,f5(b)),d))  by E7              # step 5
+
+-- Output: 
+
+{"correct": false,
+ "explanation": {"step": 4, "givenEquations": ["E2"], "correctEquations": [E6]}}
+
+** Example 8:
+
+-- Input:
+
+- Equations:
+
+E1:  g(V163472,V163472) = f2(V163472)
+E2:  f1(V163478) = g2(V163478,f1(b))
+E3:  h(V163475,a,c) = g4(V163475,f1(c))
+
+- Proof:
+
+s = r(h(c,a,c),g(c,c),h(a,d,b),h(d,a,c))                     # step 0
+    r(h(c,a,c),f2(c),h(a,d,b),h(d,a,c))           by E1      # step 1
+    r(h(c,a,c),f2(c),h(a,d,b),g4(d,f1(c)))        by E1      # step 2
+    r(h(c,a,c),f2(c),h(a,d,b),g4(d,g2(c,f1(b))))  by E2      # step 3
+
+-- Output: 
+
+{"correct": false,
+ "explanation": {"step": 2, "givenEquations": ["E1"], "correctEquations": [E3]}}
+
+#END_EXAMPLES
+
+To sum up, your output must be a JSON dictionary with two keys: "correct", whose value will be true or false
+according to whether or not the given proof is correct, and "explanation", which shows why the proof is correct
+or incorrect. In particular, for a correct proof with n+1 steps, the value of the "explanation" key should be 
+a list of n dictionaries of this form:
+
+{"step": ..., "rewrites": [..., {"position": ..., "redex": "...", "equation": ..., "contractum": "..."}, ...]} 
+
+For an incorrect proof, the value of the "explanation" key should be either of the form 
+
+{"step": ..., "equation": ..., "position": ..., "actualContractum": ..., "expectedContractum": ...}, 
+
+indicating a wrongly applied matching substitution, or of the form 
+
+{"step": ..., "givenEquations": [...], "correctEquations:[...]},
+
+indicating that the cited equations do not justify the passage to the current term. If there is a set of 
+equations E that justifies rewriting the previous term to this step's term, in the sense of ==>_E, then 
+those equation names should be listed as the value of "correctEquations". If there are no equations that 
+can license the passage to the current term according to ==>_E, then the value of "correctEquations" 
+should be the empty list. 
+
+Now here is your input proof: 
