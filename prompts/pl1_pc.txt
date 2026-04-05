@@ -4,13 +4,13 @@ only by inspecting and analyzing the proof carefully but manually. Take your tim
 think about the input carefully. 
 
 The problem consists of a number of formulas p_1, ..., p_n that are taken as premises 
-(where n >= 0) and a goal p, which is a single target formula representing the target 
-conclusion. A formula p is either an atom like A, B, C, D, E, ..., as well as true and 
-false, or else: a negation, of the form (~ p); a conjunction, of the form (p1 & p2); 
-a disjunction, of the form (p1 | p2); a conditional (p1 ==> p2); or a biconditional 
-(p1 <==> p2). We say that two formulas are "complementary" (or "complements", or that 
-they "complement" each other) when one is the syntactic negation of the other. 
-This is a symmetric relation: p complements q iff q complements p. 
+(where n >= 0) and a goal p, which is a single formula representing the target conclusion. 
+A formula p is either an atom like A, B, C, D, E, ..., as well as true and false, or else: 
+a negation, of the form (~ p); a conjunction, of the form (p1 & p2); a disjunction, of 
+the form (p1 | p2); a conditional (p1 ==> p2); or a biconditional (p1 <==> p2). We say 
+that two formulas are "complementary" (or "complements", or that they "complement" each 
+other) when one is the syntactic negation of the other. This is a symmetric relation: 
+p complements q iff q complements p. 
 
 Precedence and associativity are as follows: Negation binds the tightest, followed by conjunction, 
 disjunction, conditionals and biconditionals. All binary logical constructors associate to the right. 
