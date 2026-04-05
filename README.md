@@ -1,4 +1,11 @@
-# ProofGrid
+<p align="center">
+  <img src="assets/grid.svg" alt="ProofGrid logo" width="250">
+</p>
+
+<h1 align="center">ProofGrid</h1>
+<p align="center">
+  A reasoning benchmark for AI models
+</p>
 
 ProofGrid is a reasoning benchmark for AI models centered on **proof-based evaluation** rather than final-answer scoring alone.
 
