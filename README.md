@@ -14,7 +14,6 @@ This repository accompanies the technical report:
 which is an extended version of the 2025 EMNLP Findings paper:
 
 > [**Stress-Testing the Reasoning Competence of Language Models With Formal Proofs** ](https://aclanthology.org/2025.findings-emnlp.661/)
-> EMNLP Findings 2025
 
 The extended technical report has a lot of new material (new tasks, results, concepts, methods, and analyses) that did not appear in the EMNLP paper.
 
