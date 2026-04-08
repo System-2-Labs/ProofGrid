@@ -1,22 +1,22 @@
 <p align="center">
-  <img src="assets/grid.svg" alt="ProofGrid logo" width="250">
+  <img src="assets/pg_icon.png" alt="ProofGrid icon" width="250">
 </p>
-
-<h1 align="center">ProofGrid</h1>
 <p align="center">
-  A reasoning benchmark for AI models
+  A reasoning benchmark for language models
 </p>
 
 ProofGrid is a reasoning benchmark for AI models centered on **proof-based evaluation** rather than final-answer scoring alone.
 
-This repository accompanies the paper:
+This repository accompanies the technical report: 
 
-> **Stress-Testing the Reasoning Competence of Language Models With Formal Proofs**  
+> [**Stress-Testing the Reasoning Competence of LLMs With Proofs Under Minimal Formalism**](paper/proofgrid.pdf)
+
+which is an extended version of the 2025 EMNLP Findings paper:
+
+> [**Stress-Testing the Reasoning Competence of Language Models With Formal Proofs** ](https://aclanthology.org/2025.findings-emnlp.661/)
 > EMNLP Findings 2025
 
-Additional material (new tasks as well as new techniques and analyses) can found be in this extended technical report:
-
-> **Stress-Testing the Reasoning Competence of LLMs With Proofs Under Minimal Formalism**
+The extended technical report has a lot of new material (new tasks, results, concepts, methods, and analyses) that did not appear in the EMNLP paper.
 
 ProofGrid is designed to evaluate not just whether a model arrives at a correct answer, but whether it can **produce, analyze, verify, and manipulate rigorous reasoning artifacts**. Its central premise is that final-answer accuracy alone is an incomplete measure of reasoning competence, especially in mathematics and logic, where correctness depends on the validity of the underlying argument.
 
